@@ -94,18 +94,16 @@ mode: "custom"
       ```
     </Step>
     
-    <Step title="Set up your first account">
-      Create an account to track your bank account, credit card, or cash wallet.
+    <Step title="Complete your profile">
+      Set up your profile with your name and preferences. This helps personalize your Budget Bee experience.
       
       ```typescript
-      const account = await fetch('/accounts', {
+      const profile = await fetch('/api/auth/user/update', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer YOUR_TOKEN' },
         body: JSON.stringify({
-          name: 'Main Checking',
-          type: 'bank',
-          currency: 'USD',
-          balance: 1000.00
+          name: 'John Doe',
+          email: 'john@example.com'
         })
       });
       ```
@@ -145,11 +143,11 @@ mode: "custom"
       Track income and expenses with powerful filtering and bulk editing capabilities.
     </Card>
     <Card
-      title="Accounts"
-      icon="wallet"
+      title="Account Settings"
+      icon="user"
       href="/features/accounts"
     >
-      Manage multiple bank accounts, credit cards, and wallets in one place.
+      Manage your profile, authentication sessions, and account security.
     </Card>
     <Card
       title="Subscriptions"
