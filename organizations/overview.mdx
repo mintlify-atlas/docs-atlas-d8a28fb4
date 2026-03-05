@@ -1,0 +1,433 @@
+---
+title: Organizations Overview
+description: Multi-tenant organizations for team collaboration
+---
+
+# Organizations
+
+Budget Bee's organization feature enables teams and businesses to collaborate on shared financial data with role-based access control.
+
+## What are Organizations?
+
+Organizations are multi-user accounts that allow:
+- **Team collaboration** on shared transactions and data
+- **Role-based permissions** (owner, admin, editor, viewer)
+- **Centralized billing** and subscription management
+- **Shared categories and budgets** across team members
+- **Audit trails** for compliance and accountability
+
+<Note>
+  Organizations require a Teams subscription plan. Individual Pro plans are for personal use only.
+</Note>
+
+## Organization vs. Personal Accounts
+
+<CardGroup cols={2}>
+  <Card title="Personal Accounts" icon="user">
+    - Single user
+    - Free tier available
+    - Personal data only
+    - No team features
+  </Card>
+  
+  <Card title="Organization Accounts" icon="users">
+    - Multiple users (up to 50 members)
+    - Requires Teams subscription
+    - Shared data and resources
+    - Role-based access control
+  </Card>
+</CardGroup>
+
+## Creating an Organization
+
+Users with a Teams subscription can create organizations:
+
+```typescript
+// From packages/core/auth.ts
+organization({
+  allowUserToCreateOrganization: async (user) => {
+    if (!user.emailVerified) return false;
+    
+    const subscriptionRes = await subscriptionAdminClient.query(
+      `SELECT product_id FROM app_subscriptions 
+       WHERE user_id = $1 
+       AND period_start <= now() 
+       AND period_end >= now()`,
+      [user.id]
+    );
+    
+    return subscriptionRes.rows.length > 0 && 
+      subscriptionRes.rows.filter(x => isTeamsOrHigher(x.product_id)).length > 0;
+  },
+  organizationLimit: 5,
+  membershipLimit: 50,
+  creatorRole: "owner",
+  // ...
+})
+```
+
+<Steps>
+  <Step title="Verify Eligibility">
+    Ensure you have:
+    - A verified email address
+    - An active Teams or Teams Yearly subscription
+    - Fewer than 5 existing organizations
+  </Step>
+  
+  <Step title="Create Organization">
+    Navigate to **Organizations** → **New Organization** or click the organization switcher.
+    
+    <ParamField path="name" type="string" required>
+      Organization name (2-50 characters)
+    </ParamField>
+  </Step>
+  
+  <Step title="Set as Active">
+    After creation, the organization becomes your active context. All new data is associated with this organization.
+  </Step>
+</Steps>
+
+### Organization Limits
+
+- **Maximum organizations per user**: 5
+- **Maximum members per organization**: 50
+- **Invitation expiration**: 7 days
+
+## Switching Between Organizations
+
+Users can be members of multiple organizations:
+
+<Steps>
+  <Step title="Open Organization Switcher">
+    Click your current organization name in the sidebar.
+  </Step>
+  
+  <Step title="Select Organization">
+    Choose the organization you want to switch to from the list.
+  </Step>
+  
+  <Step title="Context Updated">
+    The interface updates to show that organization's data. Your role and permissions are determined by your membership in that organization.
+  </Step>
+</Steps>
+
+```typescript
+// Active organization in JWT token
+jwt({
+  definePayload: async ({ user, session }) => {
+    let organizationRole: string | null = null;
+
+    if (session.activeOrganizationId) {
+      const result = await authAdminClient.query(
+        `SELECT role FROM members 
+         WHERE user_id = $1 AND organization_id = $2 LIMIT 1`,
+        [user.id, session.activeOrganizationId]
+      );
+      
+      if (result.rows.length > 0) {
+        organizationRole = result.rows[0].role;
+      }
+    }
+
+    return {
+      sub: user.id,
+      claims: {
+        organization_id: session.activeOrganizationId,
+        organization_role: organizationRole,
+      },
+    };
+  },
+})
+```
+
+## Organization Roles
+
+Budget Bee supports four organizational roles:
+
+<CardGroup cols={2}>
+  <Card title="Owner" icon="crown">
+    Full control including:
+    - All permissions of admin
+    - Transfer ownership
+    - Delete organization
+  </Card>
+  
+  <Card title="Admin" icon="user-gear">
+    Management capabilities:
+    - Invite/remove members
+    - Manage member roles
+    - Organization settings
+    - Full data access
+  </Card>
+  
+  <Card title="Editor" icon="pen-to-square">
+    Edit access:
+    - Create/edit/delete transactions
+    - Create/edit categories
+    - View all data
+    - Cannot manage members
+  </Card>
+  
+  <Card title="Viewer" icon="eye">
+    Read-only access:
+    - View transactions
+    - View dashboards
+    - View categories
+    - Cannot edit or create
+  </Card>
+</CardGroup>
+
+See [Roles & Permissions](/organizations/roles-permissions) for detailed permission matrices.
+
+## Organization Data
+
+When an organization is active, data is scoped to that organization:
+
+### What's Shared
+
+- ✅ Transactions
+- ✅ Categories (organization categories)
+- ✅ Dashboards
+- ✅ Subscriptions
+- ✅ Budgets
+
+### What's Personal
+
+- ❌ User profile
+- ❌ Personal categories (created without organization)
+- ❌ Authentication sessions
+- ❌ Notification preferences
+
+### Data Isolation
+
+Row-level security ensures data isolation:
+
+```sql
+-- Example RLS policy for transactions
+CREATE POLICY limit_transactions_select ON transactions FOR SELECT
+TO authenticated USING (
+  (
+    organization_id IS NULL
+    AND user_id = uid ()
+  )
+  OR (
+    organization_id = org_id ()
+    AND (
+      check_ac_current ('transaction', 'list')
+      OR check_ac_current ('transaction', 'get')
+    )
+  )
+);
+```
+
+## Organization Settings
+
+Manage your organization from the settings page:
+
+```tsx
+// From apps/web/components/organization/organization-settings.tsx
+export function OrganizationSettings() {
+  const { data: activeOrganization } = useActiveOrganization();
+  const { data: allMembers } = useQuery({
+    queryKey: ["organizations", "members", activeOrganization?.id],
+    queryFn: async () => {
+      const res = await authClient.organization.listMembers();
+      return res.data;
+    },
+  });
+  
+  return (
+    <Tabs defaultValue="tab-settings">
+      <TabsList>
+        <TabsTrigger value="tab-members">Members</TabsTrigger>
+        <TabsTrigger value="tab-pending-invitations">Pending Invitations</TabsTrigger>
+        <TabsTrigger value="tab-settings">Settings</TabsTrigger>
+      </TabsList>
+      
+      <TabsContent value="tab-members">
+        <MembersList currentUserRole={currentUserRole} />
+      </TabsContent>
+      
+      <TabsContent value="tab-pending-invitations">
+        <InvitationsList organizationId={activeOrganization.id} />
+      </TabsContent>
+      
+      <TabsContent value="tab-settings">
+        <OrganizationSettingsForm />
+      </TabsContent>
+    </Tabs>
+  );
+}
+```
+
+### Available Settings
+
+- **Organization name**: Update the organization's display name
+- **Member management**: View and manage team members
+- **Invitations**: Manage pending invitations
+- **Billing**: View and manage subscription
+
+## Leaving an Organization
+
+Members can leave organizations they don't own:
+
+<Steps>
+  <Step title="Go to Organization Settings">
+    Navigate to **Organizations** → **Settings**.
+  </Step>
+  
+  <Step title="Leave Organization">
+    Scroll to the bottom and click **Leave Organization**.
+  </Step>
+  
+  <Step title="Confirm">
+    Confirm that you want to leave. This action cannot be undone.
+  </Step>
+  
+  <Step title="Access Removed">
+    You'll lose access to all organization data immediately and be redirected to your personal account.
+  </Step>
+</Steps>
+
+<Warning>
+  You cannot rejoin an organization without a new invitation.
+</Warning>
+
+## Deleting an Organization
+
+Only organization owners can delete organizations:
+
+<Steps>
+  <Step title="Transfer or Remove Members">
+    Optionally remove members or transfer ownership before deleting.
+  </Step>
+  
+  <Step title="Go to Settings">
+    Navigate to **Organizations** → **Settings** → **Danger Zone**.
+  </Step>
+  
+  <Step title="Delete Organization">
+    Click **Delete Organization** and type the organization name to confirm.
+  </Step>
+  
+  <Step title="Data Deleted">
+    All organization data is permanently deleted:
+    - All transactions
+    - All categories
+    - All dashboards
+    - All subscriptions
+    - All member associations
+  </Step>
+</Steps>
+
+<Warning>
+  Organization deletion is **irreversible**. Export all data before deleting.
+</Warning>
+
+## Database Schema
+
+Organizations are stored with this structure:
+
+```sql
+-- Organizations table
+create table organizations (
+  id text primary key,
+  name text not null,
+  slug text unique,
+  logo text,
+  created_at timestamp default current_timestamp
+);
+
+-- Members table
+create table members (
+  id text primary key,
+  organization_id text references organizations(id) on delete cascade,
+  user_id text references users(id) on delete cascade,
+  role text not null, -- owner, admin, editor, viewer
+  created_at timestamp default current_timestamp
+);
+
+-- Invitations table
+create table invitations (
+  id text primary key,
+  organization_id text references organizations(id) on delete cascade,
+  email text not null,
+  role text not null,
+  status text not null, -- pending, accepted, expired
+  inviter_id text references users(id),
+  created_at timestamp default current_timestamp,
+  expires_at timestamp not null
+);
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Clear Naming" icon="tag">
+    Use descriptive organization names that clearly identify the team or company.
+  </Card>
+  
+  <Card title="Appropriate Roles" icon="user-shield">
+    Assign the minimum necessary permissions for each team member.
+  </Card>
+  
+  <Card title="Regular Audits" icon="clipboard-check">
+    Periodically review member list and remove inactive users.
+  </Card>
+  
+  <Card title="Document Processes" icon="book">
+    Establish guidelines for categorization and data entry within your organization.
+  </Card>
+</CardGroup>
+
+## Billing
+
+Organization billing is managed through the user who created the organization:
+
+- Subscription is attached to the organization owner's account
+- Billing happens through Polar (configured in environment)
+- Members don't pay separately
+- Subscription covers all organization members (up to the limit)
+
+<Note>
+  If the organization owner's subscription expires, all members lose access to the organization's data.
+</Note>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Cannot create organization">
+    Verify:
+    - Email is verified
+    - You have an active Teams subscription
+    - You haven't reached the 5 organization limit
+    - Your subscription hasn't expired
+  </Accordion>
+  
+  <Accordion title="Cannot see organization data">
+    Check:
+    - The correct organization is selected
+    - Your membership is active
+    - You have the necessary role permissions
+    - The organization hasn't been deleted
+  </Accordion>
+  
+  <Accordion title="Cannot switch organizations">
+    Ensure:
+    - You're actually a member of multiple organizations
+    - Your session is valid (try refreshing)
+    - No network issues preventing the switch
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Invite Team Members" icon="user-plus" href="/organizations/invitations">
+    Learn how to invite colleagues to your organization.
+  </Card>
+  
+  <Card title="Manage Roles" icon="shield" href="/organizations/roles-permissions">
+    Understand the permission system and assign appropriate roles.
+  </Card>
+</CardGroup>

@@ -1,0 +1,428 @@
+---
+title: Categories
+description: Organize transactions with a flexible category system
+---
+
+# Category Management
+
+Categories are the foundation of Budget Bee's organization system, allowing you to classify and analyze your financial transactions.
+
+## Overview
+
+Categories help you:
+- **Organize transactions** into meaningful groups
+- **Analyze spending patterns** by category
+- **Create budgets** based on categories
+- **Generate reports** showing category breakdowns
+- **Visualize data** with color-coded charts
+
+## Default Categories
+
+Budget Bee automatically creates three categories when you sign up:
+
+```sql
+-- From packages/core/migrations/init.sql
+CREATE OR REPLACE FUNCTION create_default_categories () RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO categories (name, user_id)
+    VALUES ('Food', NEW.id), ('Travel', NEW.id), ('Sales', NEW.id);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+<CardGroup cols={3}>
+  <Card title="Food" icon="utensils">
+    Restaurants, groceries, coffee shops, and food delivery
+  </Card>
+  
+  <Card title="Travel" icon="plane">
+    Transportation, hotels, flights, car rentals, and gas
+  </Card>
+  
+  <Card title="Sales" icon="money-bill-trend-up">
+    Revenue from sales, services, or other income sources
+  </Card>
+</CardGroup>
+
+You can customize, rename, or delete these categories as needed.
+
+## Creating Categories
+
+<Steps>
+  <Step title="Open Category Dialog">
+    Click **Categories** in settings or create a category from the transaction editor.
+  </Step>
+  
+  <Step title="Enter Category Details">
+    <ParamField path="name" type="string" required>
+      Category name (e.g., "Entertainment", "Utilities", "Freelance Income")
+    </ParamField>
+    
+    <ParamField path="description" type="string">
+      Optional description to clarify the category's purpose
+    </ParamField>
+    
+    <ParamField path="color" type="string">
+      6-character hex color code (without #) for visual identification
+    </ParamField>
+  </Step>
+  
+  <Step title="Save Category">
+    Click **Save** to create the category. It's immediately available for transactions.
+  </Step>
+</Steps>
+
+```tsx
+// From apps/web/components/category-dialog.tsx
+const handleSubmit = async (data: CategoryFormValues) => {
+  const mutation = isEditing ? 'update' : 'insert';
+  
+  await db.from('categories')[mutation]({
+    name: data.name,
+    description: data.description,
+    color: data.color,
+    user_id: user.id,
+    organization_id: activeOrganization?.id
+  });
+  
+  toast.success(`Category ${isEditing ? 'updated' : 'created'}`);
+};
+```
+
+## Color Coding
+
+Categories support custom colors for visual identification:
+
+### Choosing Colors
+
+- Use distinct colors for different category types
+- Consistent color schemes improve usability
+- Consider accessibility (avoid relying solely on color)
+
+### Color Examples
+
+| Category | Suggested Color | Hex Code |
+|----------|----------------|----------|
+| Income | Green | `10b981` |
+| Food | Orange | `f97316` |
+| Housing | Blue | `3b82f6` |
+| Transportation | Yellow | `eab308` |
+| Entertainment | Purple | `a855f7` |
+| Healthcare | Red | `ef4444` |
+| Utilities | Teal | `14b8a6` |
+
+```tsx
+// Category badge with color
+// From apps/web/components/category-badge.tsx
+export function CategoryBadge({ category }) {
+  return (
+    <Badge 
+      style={{ 
+        backgroundColor: `#${category.color}`,
+        color: 'white'
+      }}
+    >
+      {category.name}
+    </Badge>
+  );
+}
+```
+
+## Category Hierarchy
+
+Budget Bee currently supports flat categories. Subcategories are planned for future releases:
+
+**Current structure:**
+```
+Food
+Travel
+Entertainment
+Utilities
+```
+
+**Planned hierarchy:**
+```
+Food
+  ├─ Groceries
+  ├─ Restaurants
+  └─ Coffee Shops
+  
+Travel
+  ├─ Flights
+  ├─ Hotels
+  └─ Car Rental
+```
+
+<Note>
+  For now, use descriptive names to create pseudo-subcategories like "Food - Groceries" and "Food - Restaurants".
+</Note>
+
+## Managing Categories
+
+### Editing Categories
+
+<Steps>
+  <Step title="Open Category List">
+    Navigate to settings or use the category picker in transaction dialogs.
+  </Step>
+  
+  <Step title="Select Category">
+    Click on the category you want to edit.
+  </Step>
+  
+  <Step title="Modify Details">
+    Update the name, description, or color.
+  </Step>
+  
+  <Step title="Save Changes">
+    Click **Save** to update the category.
+  </Step>
+</Steps>
+
+<Warning>
+  Renaming a category updates it for all existing transactions using that category.
+</Warning>
+
+### Deleting Categories
+
+When you delete a category:
+
+1. The category is removed from the system
+2. Existing transactions keep their category reference but show as "Uncategorized"
+3. The deletion cannot be undone
+
+```sql
+-- Category deletion behavior
+create table transactions (
+  -- ...
+  category_id uuid references categories (id) on delete set null,
+  -- ...
+);
+```
+
+<Tip>
+  Instead of deleting, consider renaming or merging categories to preserve transaction history.
+</Tip>
+
+## Category Picker
+
+The category picker provides quick category selection:
+
+```tsx
+// From apps/web/components/category-picker.tsx
+export function CategoryPicker({ value, onValueChange }) {
+  const { data: categories } = useCategories();
+  
+  return (
+    <Popover>
+      <PopoverTrigger>
+        <Badge>{selectedCategory?.name || 'Select Category'}</Badge>
+      </PopoverTrigger>
+      <PopoverContent>
+        <Command>
+          <CommandInput placeholder="Search categories..." />
+          <CommandList>
+            {categories?.map(category => (
+              <CommandItem
+                key={category.id}
+                onSelect={() => onValueChange(category.id)}
+              >
+                <CategoryBadge category={category} />
+                {category.name}
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+```
+
+### Picker Features
+
+- **Search**: Type to filter categories
+- **Color preview**: See category colors before selecting
+- **Create new**: Add categories without leaving the dialog
+- **Recent categories**: Frequently used categories appear first
+
+## Category Analytics
+
+Use categories to analyze your spending:
+
+### Spending by Category
+
+View total spending for each category:
+- Identify your highest expense categories
+- Compare spending across categories
+- Track category trends over time
+
+### Category Charts
+
+Visualize category data:
+- **Donut charts**: Show spending proportions
+- **Bar charts**: Compare category amounts
+- **Line charts**: Track category spending over time
+- **Stacked charts**: Show category breakdown by month
+
+## Database Schema
+
+Categories are stored with this structure:
+
+```sql
+create table categories (
+  id uuid primary key default gen_random_uuid(),
+  name varchar(255) not null,
+  description varchar(1000),
+  color varchar(6),
+  user_id text references users (id),
+  organization_id text references organizations (id)
+);
+```
+
+### Row-Level Security
+
+Categories use RLS to ensure data isolation:
+
+```sql
+CREATE POLICY limit_categories ON categories FOR ALL TO authenticated USING (
+  organization_id = org_id ()
+  OR (
+    organization_id IS NULL
+    AND user_id = uid ()
+  )
+)
+WITH CHECK (
+  organization_id = org_id ()
+  OR (
+    organization_id IS NULL
+    AND user_id = uid ()
+  )
+);
+```
+
+## Organization Categories
+
+In multi-user organizations:
+
+- **Personal categories**: Visible only to you (`organization_id` is NULL)
+- **Shared categories**: Visible to all organization members
+- **Organization admins**: Can create shared categories
+- **Members**: Use shared categories, create personal ones
+
+<Tip>
+  Create shared categories for common expenses like "Office Supplies" or "Client Entertainment" in business organizations.
+</Tip>
+
+## Category Import/Export
+
+Export your category structure:
+
+```json
+[
+  {
+    "name": "Groceries",
+    "description": "Food and household items",
+    "color": "10b981"
+  },
+  {
+    "name": "Utilities",
+    "description": "Electricity, water, internet",
+    "color": "3b82f6"
+  }
+]
+```
+
+Import categories to:
+- Migrate from another app
+- Share category structures with team members
+- Backup your category configuration
+- Set up new organization accounts
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Keep It Simple" icon="circle-notch">
+    Start with 5-10 categories. Add more only as needed.
+  </Card>
+  
+  <Card title="Be Consistent" icon="repeat">
+    Always categorize transactions the same way for accurate reporting.
+  </Card>
+  
+  <Card title="Use Clear Names" icon="text">
+    Choose descriptive names that are obvious to all users.
+  </Card>
+  
+  <Card title="Color Code" icon="palette">
+    Assign distinct colors to make categories instantly recognizable.
+  </Card>
+</CardGroup>
+
+## Common Category Schemes
+
+### Personal Finance
+
+- Housing (rent, mortgage, property tax)
+- Transportation (car payment, gas, public transit)
+- Food (groceries, dining out)
+- Utilities (electricity, water, internet, phone)
+- Insurance (health, auto, life, home)
+- Healthcare (doctor visits, prescriptions)
+- Entertainment (movies, concerts, hobbies)
+- Personal Care (haircuts, gym, clothing)
+- Savings & Investments
+- Debt Payments
+- Miscellaneous
+
+### Business Finance
+
+- Revenue
+- Cost of Goods Sold
+- Payroll
+- Office Expenses
+- Marketing & Advertising
+- Professional Services
+- Travel & Entertainment
+- Equipment & Supplies
+- Insurance
+- Utilities
+- Taxes
+- Miscellaneous
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Category not appearing in picker">
+    Check:
+    - The category wasn't deleted
+    - You have the correct organization selected
+    - The category belongs to your account or organization
+    - Browser cache is up to date (try refreshing)
+  </Accordion>
+  
+  <Accordion title="Cannot delete category">
+    Verify:
+    - You're not trying to delete a system category
+    - You have the necessary permissions
+    - The category isn't linked to a budget
+    - Try reassigning transactions to another category first
+  </Accordion>
+  
+  <Accordion title="Color not displaying correctly">
+    Ensure:
+    - The color code is 6 hex digits (e.g., `ff0000`)
+    - No # symbol in the color code
+    - Valid hex characters only (0-9, a-f)
+  </Accordion>
+  
+  <Accordion title="Transactions show wrong category">
+    This may happen if:
+    - The category was renamed after transaction creation
+    - A bulk edit changed categories
+    - Data was imported with incorrect category mapping
+    
+    Use bulk edit to fix incorrect categories.
+  </Accordion>
+</AccordionGroup>

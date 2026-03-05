@@ -1,0 +1,198 @@
+---
+title: 'Authentication Overview'
+description: 'Learn how Budget Bee handles authentication, session management, and JWT tokens'
+icon: 'shield-check'
+---
+
+## Authentication System
+
+Budget Bee uses **Better Auth** with JWT (JSON Web Token) based authentication. The system supports multiple authentication methods including email/password and OAuth providers.
+
+### Base URL
+
+All authentication endpoints are available at:
+
+```
+{NEXT_PUBLIC_APP_URL}/api/auth
+```
+
+### Authentication Methods
+
+Budget Bee supports the following authentication methods:
+
+- **Email/Password** - Traditional email and password authentication
+- **Google OAuth** - Sign in with Google
+- **Bearer Tokens** - API access using JWT tokens
+
+## Session Management
+
+### Session Configuration
+
+Sessions are stored in the database with the following fields:
+
+<ParamField path="id" type="string" required>
+  Unique session identifier
+</ParamField>
+
+<ParamField path="user_id" type="string" required>
+  Reference to the authenticated user
+</ParamField>
+
+<ParamField path="active_organization_id" type="string">
+  Currently active organization for this session
+</ParamField>
+
+<ParamField path="expires_at" type="timestamp" required>
+  When the session expires
+</ParamField>
+
+<ParamField path="ip_address" type="string">
+  IP address of the client
+</ParamField>
+
+<ParamField path="user_agent" type="string">
+  Browser/client user agent string
+</ParamField>
+
+<ParamField path="created_at" type="timestamp">
+  Session creation timestamp
+</ParamField>
+
+<ParamField path="updated_at" type="timestamp">
+  Last session update timestamp
+</ParamField>
+
+## JWT Token Structure
+
+### Token Payload
+
+JWT tokens issued by Budget Bee contain the following claims:
+
+```json
+{
+  "sub": "user_id",
+  "user_id": "user_id",
+  "role": "authenticated",
+  "email": "user@example.com",
+  "claims": {
+    "organization_id": "org_id",
+    "organization_role": "owner",
+    "subscription": {
+      "isSubscribed": true,
+      "productId": "prod_123"
+    }
+  },
+  "iss": "{NEXT_PUBLIC_APP_URL}",
+  "aud": "{NEXT_PUBLIC_APP_URL}",
+  "exp": 1234567890
+}
+```
+
+<ResponseField name="sub" type="string">
+  Subject - the user ID
+</ResponseField>
+
+<ResponseField name="user_id" type="string">
+  User identifier (same as sub)
+</ResponseField>
+
+<ResponseField name="role" type="string">
+  Always "authenticated" for logged-in users
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  User's email address
+</ResponseField>
+
+<ResponseField name="claims.organization_id" type="string">
+  Active organization ID (if any)
+</ResponseField>
+
+<ResponseField name="claims.organization_role" type="string">
+  User's role in the organization: `owner`, `admin`, `editor`, or `viewer`
+</ResponseField>
+
+<ResponseField name="claims.subscription" type="object">
+  Current subscription information
+</ResponseField>
+
+<ResponseField name="iss" type="string">
+  Token issuer
+</ResponseField>
+
+<ResponseField name="aud" type="string">
+  Token audience
+</ResponseField>
+
+<ResponseField name="exp" type="number">
+  Expiration timestamp (1 hour from issue)
+</ResponseField>
+
+## Making Authenticated Requests
+
+### Using Bearer Token
+
+Include the JWT token in the `Authorization` header:
+
+```bash
+curl -X GET "{NEXT_PUBLIC_PG_REST_URL}/transactions" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Content-Type: application/json"
+```
+
+### Using Cookies
+
+For browser-based requests, sessions are automatically managed via secure HTTP-only cookies.
+
+## Email Verification
+
+### Requirements
+
+- Email verification is **required** for all new accounts
+- Verification emails are sent on sign-up and sign-in (if not verified)
+- Unverified users cannot create organizations
+
+### Verification Flow
+
+1. User signs up with email/password
+2. Verification email sent with unique link
+3. User clicks link to verify email
+4. Account becomes fully active
+
+## Security Features
+
+### Password Reset
+
+Secure password reset flow with email verification:
+
+- Reset link expires after configured time
+- One-time use tokens
+- Email notification on password change
+
+### Account Linking
+
+Trusted providers (Google) can be linked to existing accounts:
+
+- Prevents duplicate accounts
+- Seamless provider switching
+- Maintains single user identity
+
+### Database Roles
+
+Budget Bee uses PostgreSQL row-level security (RLS) with specific roles:
+
+- `anon` - Anonymous/unauthenticated access
+- `authenticated` - Logged-in users
+- `auth_admin` - Special role for auth operations
+- `subscription_admin` - Subscription management operations
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Email/Password Auth" icon="envelope" href="/api/authentication/email-password">
+    Learn about email/password authentication endpoints
+  </Card>
+  <Card title="OAuth Setup" icon="google" href="/api/authentication/oauth">
+    Configure Google OAuth authentication
+  </Card>
+</CardGroup>

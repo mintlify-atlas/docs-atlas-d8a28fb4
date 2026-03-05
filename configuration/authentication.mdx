@@ -1,0 +1,507 @@
+---
+title: Authentication Setup
+description: Configure Better Auth with email/password and OAuth providers
+---
+
+# Authentication Setup
+
+Budget Bee uses [Better Auth](https://better-auth.com) for authentication, providing email/password and social login with Google.
+
+## Overview
+
+Better Auth provides:
+- **Email & Password** authentication with verification
+- **OAuth integration** (Google Sign-In)
+- **Account linking** across auth methods
+- **Session management** with JWT tokens
+- **Organization support** for multi-tenant features
+- **Password reset** via email
+
+## Configuration
+
+Authentication is configured in `packages/core/auth.ts`:
+
+```typescript
+import { betterAuth } from "better-auth";
+import { nextCookies } from "better-auth/next-js";
+import { bearer, customSession, jwt, organization } from "better-auth/plugins";
+import { polar } from "@polar-sh/better-auth";
+
+export const auth = betterAuth({
+  database: authAdminClient,
+  appName: "Budgetbee",
+  trustedOrigins: [
+    process.env.NEXT_PUBLIC_SITE_URL!,
+    process.env.NEXT_PUBLIC_APP_URL!,
+  ],
+  baseURL: process.env.NEXT_PUBLIC_APP_URL!,
+  
+  // Email & Password configuration
+  emailAndPassword: {
+    enabled: true,
+    requireEmailVerification: true,
+    sendResetPassword: async (data) => {
+      // Send password reset email via Resend
+    },
+  },
+  
+  // Email verification
+  emailVerification: {
+    sendVerificationEmail: async (data) => {
+      // Send verification email via Resend
+    },
+    sendOnSignUp: true,
+    sendOnSignIn: true,
+  },
+  
+  // Social providers
+  socialProviders: {
+    google: {
+      enabled: true,
+      prompt: "select_account",
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    },
+  },
+  
+  // Plugins
+  plugins: [
+    customSession(),
+    organization(),
+    polar(),
+    jwt(),
+    bearer(),
+    nextCookies(),
+  ],
+});
+```
+
+## Email & Password Authentication
+
+### Requirements
+
+Passwords must meet these criteria:
+
+<Accordion title="Password Requirements">
+  - Minimum 8 characters
+  - At least 1 lowercase letter (a-z)
+  - At least 1 uppercase letter (A-Z)
+  - At least 1 number (0-9)
+</Accordion>
+
+### Sign-Up Flow
+
+<Steps>
+  <Step title="User Submits Form">
+    ```tsx
+    const res = await authClient.signUp.email({
+      name: "John Doe",
+      email: "john@example.com",
+      password: "SecurePass123",
+    });
+    ```
+  </Step>
+  
+  <Step title="User Created">
+    Better Auth creates a user record in the database.
+  </Step>
+  
+  <Step title="Verification Email Sent">
+    A verification email is sent via Resend:
+    
+    ```typescript
+    sendVerificationEmail: async data => {
+      await resend.emails.send({
+        from: `${process.env.SMTP_SENDER_NAME} <${process.env.SMTP_MAIL}>`,
+        to: [data.user.email],
+        subject: "Verify your email",
+        html: verificationLink(data.url),
+      });
+    }
+    ```
+  </Step>
+  
+  <Step title="User Verifies Email">
+    User clicks the link in the email to verify their account.
+  </Step>
+  
+  <Step title="Access Granted">
+    After verification, user can sign in and access Budget Bee.
+  </Step>
+</Steps>
+
+### Sign-In Flow
+
+```tsx
+const res = await authClient.signIn.email({
+  email: "john@example.com",
+  password: "SecurePass123",
+  rememberMe: true,
+  callbackURL: "/transactions",
+});
+
+if (res.error) {
+  // Handle error
+  console.error(res.error.message);
+} else {
+  // Redirect to callbackURL
+  router.push(res.data.url || "/transactions");
+}
+```
+
+### Password Reset
+
+<Steps>
+  <Step title="Request Reset">
+    User clicks "Forgot Password" and enters their email.
+  </Step>
+  
+  <Step title="Reset Email Sent">
+    ```typescript
+    sendResetPassword: async data => {
+      await resend.emails.send({
+        from: `${process.env.SMTP_SENDER_NAME} <${process.env.SMTP_MAIL}>`,
+        to: [data.user.email],
+        subject: "Password reset",
+        html: resetPassword(data.url),
+      });
+    }
+    ```
+  </Step>
+  
+  <Step title="User Creates New Password">
+    User clicks the link and enters a new password meeting requirements.
+  </Step>
+  
+  <Step title="Password Updated">
+    New password is hashed and stored. User can sign in immediately.
+  </Step>
+</Steps>
+
+## Google OAuth
+
+### Setup Google OAuth
+
+<Steps>
+  <Step title="Create Google Cloud Project">
+    1. Go to [Google Cloud Console](https://console.cloud.google.com)
+    2. Create a new project or select existing
+    3. Enable the Google+ API
+  </Step>
+  
+  <Step title="Create OAuth Credentials">
+    1. Navigate to **APIs & Services** → **Credentials**
+    2. Click **Create Credentials** → **OAuth 2.0 Client ID**
+    3. Select **Web application**
+    4. Add authorized redirect URIs:
+       - Development: `http://localhost:3000/api/auth/callback/google`
+       - Production: `https://your-domain.com/api/auth/callback/google`
+  </Step>
+  
+  <Step title="Copy Credentials">
+    Copy the Client ID and Client Secret to your `.env` file:
+    
+    ```bash
+    GOOGLE_CLIENT_ID=123456789-abc.apps.googleusercontent.com
+    GOOGLE_CLIENT_SECRET=GOCSPX-abc123xyz789
+    ```
+  </Step>
+</Steps>
+
+### Google Sign-In Flow
+
+```tsx
+const handleGoogleSignIn = async () => {
+  const res = await authClient.signIn.social({
+    provider: "google",
+    callbackURL: "/transactions",
+  });
+  
+  if (res.error) {
+    setError(res.error.message);
+  } else if (res.data && res.data.redirect) {
+    router.push(res.data.url || "/transactions");
+  }
+};
+```
+
+### Account Linking
+
+Users can link multiple authentication methods:
+
+```typescript
+account: {
+  accountLinking: {
+    enabled: true,
+    trustedProviders: ["google"],
+  },
+}
+```
+
+**Scenarios:**
+- User signs up with email/password, later links Google account
+- User signs in with Google, account automatically created
+- Existing email account automatically links to Google if emails match
+
+## Session Management
+
+### Custom Session Data
+
+Budget Bee extends sessions with subscription information:
+
+```typescript
+customSession(async ({ session, user }) => {
+  const subscription = `select product_id from app_subscriptions 
+    where user_id = $1 and period_start <= now() and period_end >= now()`;
+  
+  const subscriptionRes = await authAdminClient.query(subscription, [user.id]);
+  
+  const isSubscribed = subscriptionRes?.rows?.length > 0;
+  
+  return {
+    user,
+    session,
+    subscription: {
+      isSubscribed,
+      productId: subscriptionRes.rows[0]?.product_id,
+    },
+  };
+})
+```
+
+### JWT Tokens
+
+JWT tokens include user and organization context:
+
+```typescript
+jwt({
+  jwt: {
+    definePayload: async ({ user, session }) => {
+      let organizationRole: string | null = null;
+
+      if (session.activeOrganizationId) {
+        const result = await authAdminClient.query(
+          `SELECT role FROM members 
+           WHERE user_id = $1 AND organization_id = $2 LIMIT 1`,
+          [user.id, session.activeOrganizationId]
+        );
+        
+        if (result.rows.length > 0) {
+          organizationRole = result.rows[0].role;
+        }
+      }
+
+      return {
+        sub: user.id,
+        user_id: user.id,
+        role: "authenticated",
+        email: user.email,
+        claims: {
+          organization_id: session.activeOrganizationId,
+          organization_role: organizationRole,
+          subscription: session.subscription,
+        },
+      };
+    },
+    issuer: process.env.NEXT_PUBLIC_APP_URL!,
+    audience: process.env.NEXT_PUBLIC_APP_URL!,
+    expirationTime: "1h",
+  },
+})
+```
+
+### Session Storage
+
+Sessions are stored in the database:
+
+```sql
+create table sessions (
+  id text primary key,
+  expires_at timestamp not null,
+  ip_address text,
+  user_agent text,
+  user_id text references users(id) on delete cascade,
+  active_organization_id text,
+  created_at timestamp default current_timestamp,
+  updated_at timestamp default current_timestamp
+);
+```
+
+## Organization Plugin
+
+Better Auth's organization plugin enables multi-tenancy:
+
+```typescript
+organization({
+  allowUserToCreateOrganization: async (user) => {
+    // Check if user has Teams subscription
+    if (!user.emailVerified) return false;
+    const subscriptionRes = await subscriptionAdminClient.query(
+      `SELECT product_id FROM app_subscriptions 
+       WHERE user_id = $1 
+       AND period_start <= now() 
+       AND period_end >= now()`,
+      [user.id]
+    );
+    return subscriptionRes.rows.length > 0 && 
+      subscriptionRes.rows.filter(x => isTeamsOrHigher(x.product_id)).length > 0;
+  },
+  organizationLimit: 5,
+  membershipLimit: 50,
+  creatorRole: "owner",
+  ac: accessControl,
+  roles: { owner, admin, editor, viewer },
+  invitationExpiresIn: 60 * 60 * 24 * 7, // 7 days
+  requireEmailVerificationOnInvitation: true,
+  sendInvitationEmail: async (data) => {
+    // Send invitation email via Resend
+  },
+})
+```
+
+## Email Templates
+
+Budget Bee sends these emails:
+
+### Verification Email
+
+```html
+<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+  <h2>Verify your email</h2>
+  <p>Thanks for signing up for Budget Bee!</p>
+  <p style="margin: 24px 0;">
+    <a href="${verificationUrl}" 
+       style="background-color: #10b981; color: white; 
+              padding: 12px 24px; text-decoration: none; 
+              border-radius: 6px; display: inline-block;">
+      Verify Email Address
+    </a>
+  </p>
+  <p style="color: #666; font-size: 14px;">
+    This link will expire in 24 hours.
+  </p>
+</div>
+```
+
+### Password Reset Email
+
+```html
+<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+  <h2>Reset your password</h2>
+  <p>You requested to reset your Budget Bee password.</p>
+  <p style="margin: 24px 0;">
+    <a href="${resetUrl}" 
+       style="background-color: #10b981; color: white; 
+              padding: 12px 24px; text-decoration: none; 
+              border-radius: 6px; display: inline-block;">
+      Reset Password
+    </a>
+  </p>
+  <p style="color: #666; font-size: 14px;">
+    If you didn't request this, you can safely ignore this email.
+  </p>
+</div>
+```
+
+### Organization Invitation Email
+
+See [Invitations](/organizations/invitations) for invitation email template.
+
+## Security Features
+
+<CardGroup cols={2}>
+  <Card title="Email Verification" icon="envelope-circle-check">
+    Prevents unauthorized account creation and spam.
+  </Card>
+  
+  <Card title="Password Hashing" icon="lock">
+    Passwords hashed with bcrypt before storage.
+  </Card>
+  
+  <Card title="JWT Tokens" icon="key">
+    Stateless authentication with signed tokens.
+  </Card>
+  
+  <Card title="Session Tracking" icon="clipboard-list">
+    Track all active sessions with IP and user agent.
+  </Card>
+</CardGroup>
+
+## Client-Side Usage
+
+Using the auth client in React components:
+
+```tsx
+import { authClient } from "@budgetbee/core/auth-client";
+
+export function MyComponent() {
+  const { data: session, isPending } = authClient.useSession();
+  
+  if (isPending) {
+    return <div>Loading...</div>;
+  }
+  
+  if (!session) {
+    return <div>Not signed in</div>;
+  }
+  
+  return (
+    <div>
+      <p>Welcome, {session.user.name}!</p>
+      <p>Email: {session.user.email}</p>
+      {session.subscription?.isSubscribed && (
+        <p>Subscription: {session.subscription.productId}</p>
+      )}
+    </div>
+  );
+}
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Verification email not received">
+    Check:
+    - Resend API key is valid
+    - Sender email is verified in Resend
+    - Check spam/junk folder
+    - Review Resend dashboard for delivery logs
+    - Verify SMTP_MAIL and SMTP_SENDER_NAME are set
+  </Accordion>
+  
+  <Accordion title="Google Sign-In not working">
+    Verify:
+    - Client ID and secret are correct
+    - Redirect URI matches exactly (including protocol)
+    - Google+ API is enabled in Google Cloud Console
+    - OAuth consent screen is configured
+  </Accordion>
+  
+  <Accordion title="Session expired quickly">
+    Ensure:
+    - Browser cookies are enabled
+    - BETTER_AUTH_SECRET hasn't changed
+    - JWT expiration time is appropriate (default 1h)
+    - System clock is accurate
+  </Accordion>
+  
+  <Accordion title="Cannot create organization">
+    Check:
+    - User email is verified
+    - User has active Teams subscription
+    - Haven't reached organization limit (5)
+    - Subscription admin database user has correct permissions
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Variables" icon="gear" href="/configuration/environment-variables">
+    Configure all authentication-related environment variables.
+  </Card>
+  
+  <Card title="Database Setup" icon="database" href="/configuration/database-setup">
+    Set up database tables and users for authentication.
+  </Card>
+</CardGroup>

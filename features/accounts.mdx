@@ -1,0 +1,466 @@
+---
+title: Accounts
+description: Manage user accounts, profiles, and authentication sessions
+---
+
+# Account Management
+
+Budget Bee provides comprehensive account management features for controlling your profile, security settings, and active sessions.
+
+## Account Types
+
+Budget Bee supports two types of accounts:
+
+<CardGroup cols={2}>
+  <Card title="Personal Accounts" icon="user">
+    Individual accounts for personal finance management. Free tier available.
+  </Card>
+  
+  <Card title="Organization Accounts" icon="users">
+    Multi-user accounts for teams and businesses. Requires Pro or Teams subscription.
+  </Card>
+</CardGroup>
+
+## Profile Management
+
+Manage your user profile information:
+
+### Accessing Profile Settings
+
+<Steps>
+  <Step title="Navigate to Settings">
+    Click your profile icon in the sidebar and select **Settings**, or navigate to `/settings`.
+  </Step>
+  
+  <Step title="Edit Profile Information">
+    Update your profile details:
+    
+    <ParamField path="name" type="string" required>
+      Your display name (minimum 2 characters)
+    </ParamField>
+    
+    <ParamField path="email" type="string" required>
+      Your email address (used for login and notifications)
+    </ParamField>
+  </Step>
+  
+  <Step title="Save Changes">
+    Click **Save Changes** to update your profile.
+  </Step>
+</Steps>
+
+```tsx
+// Profile editing component
+// From apps/web/components/accounts/edit-profile.tsx
+
+export function EditProfile() {
+  const { data: session } = authClient.useSession();
+  
+  const handleSubmit = async (data: ProfileFormValues) => {
+    const res = await authClient.user.update({
+      name: data.name,
+      email: data.email
+    });
+    
+    if (res.error) {
+      toast.error(res.error.message);
+    } else {
+      toast.success("Profile updated successfully");
+    }
+  };
+  
+  return (
+    <form onSubmit={handleSubmit}>
+      {/* Form fields */}
+    </form>
+  );
+}
+```
+
+## Authentication Methods
+
+Budget Bee supports multiple authentication methods:
+
+### Email and Password
+
+The default authentication method:
+
+<Accordion title="Password Requirements">
+  Passwords must meet these security requirements:
+  - Minimum 8 characters
+  - At least 1 lowercase letter
+  - At least 1 uppercase letter
+  - At least 1 number
+</Accordion>
+
+### Social Login
+
+Authenticate using third-party providers:
+
+<CardGroup cols={2}>
+  <Card title="Google OAuth" icon="google">
+    Sign in with your Google account for quick access.
+  </Card>
+  
+  <Card title="Account Linking" icon="link">
+    Link multiple authentication methods to the same account.
+  </Card>
+</CardGroup>
+
+```typescript
+// Google sign-in configuration
+// From packages/core/auth.ts
+
+socialProviders: {
+  google: {
+    enabled: true,
+    prompt: "select_account",
+    clientId: process.env.GOOGLE_CLIENT_ID!,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+  },
+}
+```
+
+<Note>
+  Account linking allows you to sign in with Google even if you originally created your account with email and password.
+</Note>
+
+## Session Management
+
+View and manage your active authentication sessions:
+
+### Active Sessions
+
+Budget Bee tracks all active sessions including:
+- Device information
+- Browser type
+- IP address
+- Last active time
+- Session creation time
+
+```tsx
+// Sessions list component
+// From apps/web/components/accounts/sessions-list.tsx
+
+export function SessionsList() {
+  const { data: sessions } = useQuery({
+    queryKey: ['sessions'],
+    queryFn: async () => {
+      const res = await authClient.session.list();
+      return res.data;
+    }
+  });
+  
+  return (
+    <div>
+      {sessions?.map(session => (
+        <SessionCard 
+          key={session.id}
+          session={session}
+          onRevoke={handleRevoke}
+        />
+      ))}
+    </div>
+  );
+}
+```
+
+### Revoking Sessions
+
+<Steps>
+  <Step title="View Active Sessions">
+    Navigate to **Settings** → **Sessions** to see all active sessions.
+  </Step>
+  
+  <Step title="Identify Suspicious Sessions">
+    Review the session list for any unfamiliar devices or locations.
+  </Step>
+  
+  <Step title="Revoke Session">
+    Click **Revoke** next to any session you want to terminate.
+  </Step>
+</Steps>
+
+<Warning>
+  Revoking your current session will log you out immediately.
+</Warning>
+
+## Email Verification
+
+Email verification is required for new accounts:
+
+### Verification Process
+
+<Steps>
+  <Step title="Sign Up">
+    Create your account with email and password.
+  </Step>
+  
+  <Step title="Check Email">
+    You'll receive a verification email at the provided address.
+  </Step>
+  
+  <Step title="Click Verification Link">
+    Click the link in the email to verify your account.
+  </Step>
+  
+  <Step title="Access Budget Bee">
+    After verification, you can sign in and access all features.
+  </Step>
+</Steps>
+
+```typescript
+// Email verification configuration
+emailVerification: {
+  sendVerificationEmail: async data => {
+    const { data: success, error } = await resend.emails.send({
+      from: `${process.env.SMTP_SENDER_NAME} <${process.env.SMTP_MAIL}>`,
+      to: [data.user.email],
+      subject: "Verify your email",
+      html: verificationLink(data.url),
+    });
+  },
+  sendOnSignUp: true,
+  sendOnSignIn: true, // Resend if user not verified
+}
+```
+
+### Resending Verification Email
+
+If you didn't receive the verification email:
+
+1. Try signing in with your credentials
+2. Budget Bee will automatically resend the verification email
+3. Check your spam folder
+4. Ensure the email address is correct
+
+## Password Reset
+
+Reset your password if you forget it:
+
+<Steps>
+  <Step title="Click Forgot Password">
+    On the login page, click **Forgot Password**.
+  </Step>
+  
+  <Step title="Enter Email">
+    Provide the email address associated with your account.
+  </Step>
+  
+  <Step title="Check Email">
+    You'll receive a password reset email within a few minutes.
+  </Step>
+  
+  <Step title="Create New Password">
+    Click the link in the email and create a new password that meets the security requirements.
+  </Step>
+  
+  <Step title="Sign In">
+    Use your new password to sign in to Budget Bee.
+  </Step>
+</Steps>
+
+```typescript
+// Password reset email configuration
+sendResetPassword: async data => {
+  const { data: success, error } = await resend.emails.send({
+    from: `${process.env.SMTP_SENDER_NAME} <${process.env.SMTP_MAIL}>`,
+    to: [data.user.email],
+    subject: "Password reset",
+    html: resetPassword(data.url),
+  });
+}
+```
+
+## Account Deletion
+
+Permanently delete your Budget Bee account:
+
+<Warning>
+  Account deletion is **irreversible**. All your data including transactions, categories, and settings will be permanently deleted.
+</Warning>
+
+### Deletion Process
+
+<Steps>
+  <Step title="Export Your Data">
+    Before deleting, export all your transaction data for backup.
+  </Step>
+  
+  <Step title="Navigate to Settings">
+    Go to **Settings** and scroll to the danger zone at the bottom.
+  </Step>
+  
+  <Step title="Confirm Deletion">
+    Click **Delete Account** and type your account name to confirm.
+  </Step>
+  
+  <Step title="Account Deleted">
+    Your account and all associated data will be immediately deleted.
+  </Step>
+</Steps>
+
+```tsx
+// Delete account confirmation modal
+// From apps/web/components/accounts/delete-account-confirmation-modal.tsx
+
+<AlertDialog>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>Delete Account</AlertDialogTitle>
+      <AlertDialogDescription>
+        This action cannot be undone. This will permanently delete your
+        account and remove all associated data.
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+    <AlertDialogFooter>
+      <AlertDialogCancel>Cancel</AlertDialogCancel>
+      <AlertDialogAction onClick={handleDelete}>
+        Delete Account
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
+```
+
+### What Gets Deleted
+
+When you delete your account:
+
+- ✅ All transactions
+- ✅ All categories (custom categories only)
+- ✅ All dashboards and widgets
+- ✅ All subscriptions
+- ✅ Profile information
+- ✅ Active sessions
+- ✅ Organization memberships (you'll be removed from all organizations)
+
+<Note>
+  If you're the owner of an organization, you must transfer ownership or delete the organization before deleting your account.
+</Note>
+
+## Multi-Currency Support
+
+Budget Bee accounts support multiple currencies:
+
+- Set a default currency for new transactions
+- Track transactions in 150+ currencies
+- View balances converted to your preferred currency
+- Filter and group by currency
+
+## Subscription Status
+
+View your current subscription plan:
+
+<Accordion title="Subscription Tiers">
+  - **Free**: Personal account with basic features
+  - **Pro**: Individual account with advanced features
+  - **Teams**: Multi-user organization accounts
+  - **Teams Yearly**: Annual billing for teams
+</Accordion>
+
+### Checking Subscription Status
+
+Your subscription status is displayed in:
+- Account settings page
+- Organization settings (if applicable)
+- Header navigation
+
+```typescript
+// Subscription check in session
+customSession(async ({ session, user }) => {
+  const subscription = `select product_id from app_subscriptions 
+    where user_id = $1 and period_start <= now() and period_end >= now()`;
+  const subscriptionRes = await authAdminClient.query(subscription, [user.id]);
+  
+  const isSubscribed = subscriptionRes?.rows?.length > 0;
+  
+  return {
+    user,
+    session,
+    subscription: {
+      isSubscribed,
+      productId: subscriptionRes.rows[0]?.product_id,
+    },
+  };
+})
+```
+
+## Security Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Strong Passwords" icon="lock">
+    Use unique, complex passwords that meet all requirements.
+  </Card>
+  
+  <Card title="Regular Session Review" icon="shield-check">
+    Periodically review and revoke unfamiliar sessions.
+  </Card>
+  
+  <Card title="Email Security" icon="envelope-circle-check">
+    Ensure your email account is secure - it's used for password resets.
+  </Card>
+  
+  <Card title="Account Linking" icon="link">
+    Link multiple authentication methods for account recovery options.
+  </Card>
+</CardGroup>
+
+## Database Schema
+
+Users are stored in the database:
+
+```sql
+-- Users table (created by Better Auth)
+create table users (
+  id text primary key,
+  name text,
+  email text unique not null,
+  email_verified boolean default false,
+  image text,
+  created_at timestamp default current_timestamp,
+  updated_at timestamp default current_timestamp
+);
+
+-- Sessions table
+create table sessions (
+  id text primary key,
+  expires_at timestamp not null,
+  ip_address text,
+  user_agent text,
+  user_id text references users(id) on delete cascade,
+  created_at timestamp default current_timestamp,
+  updated_at timestamp default current_timestamp
+);
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Cannot verify email">
+    - Check your spam folder
+    - Ensure the email address is correct
+    - Try signing in to trigger a new verification email
+    - Contact support if the issue persists
+  </Accordion>
+  
+  <Accordion title="Password reset not working">
+    - Check spam folder for the reset email
+    - Ensure you're using the correct email address
+    - Reset links expire after a certain time
+    - Try requesting a new reset link
+  </Accordion>
+  
+  <Accordion title="Cannot delete account">
+    - If you own organizations, transfer or delete them first
+    - Ensure you're typing the correct confirmation text
+    - Try signing out and back in
+  </Accordion>
+  
+  <Accordion title="Session expired frequently">
+    - Check your browser's cookie settings
+    - Ensure cookies are enabled for Budget Bee
+    - Clear browser cache and cookies
+    - Try a different browser
+  </Accordion>
+</AccordionGroup>

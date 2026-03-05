@@ -1,0 +1,538 @@
+---
+title: Database Setup
+description: Configure PostgreSQL for Budget Bee with proper users, roles, and permissions
+---
+
+# Database Setup
+
+Budget Bee uses PostgreSQL as its database. This guide covers installation, configuration, and initialization.
+
+## Prerequisites
+
+Before setting up the database:
+
+- **PostgreSQL 14+** installed and running
+- Command-line access to PostgreSQL
+- Appropriate permissions to create databases and users
+
+## Quick Setup
+
+For rapid setup, use the automated scripts:
+
+```bash
+# Create database roles
+./scripts/create_roles.sh
+
+# Run all migrations
+./scripts/run_migrations.sh
+```
+
+<Note>
+  These scripts require environment variables to be set in `.env`. See [Environment Variables](/configuration/environment-variables).
+</Note>
+
+## Manual Setup
+
+For manual control or troubleshooting, follow these steps:
+
+### Step 1: Create Database
+
+<Steps>
+  <Step title="Connect to PostgreSQL">
+    ```bash
+    psql -U postgres
+    ```
+  </Step>
+  
+  <Step title="Create Database">
+    ```sql
+    CREATE DATABASE budgetbee;
+    ```
+  </Step>
+  
+  <Step title="Connect to New Database">
+    ```sql
+    \c budgetbee
+    ```
+  </Step>
+</Steps>
+
+### Step 2: Create Database Users
+
+Budget Bee uses three separate database users for security:
+
+<Tabs>
+  <Tab title="Main User">
+    ```sql
+    -- Main application user
+    CREATE ROLE budgetbee_user WITH LOGIN PASSWORD 'your-secure-password';
+    
+    -- Grant connection
+    GRANT CONNECT ON DATABASE budgetbee TO budgetbee_user;
+    ```
+    
+    This user is used for general application operations.
+  </Tab>
+  
+  <Tab title="Auth Admin">
+    ```sql
+    -- Authentication admin user
+    CREATE ROLE auth_admin WITH LOGIN PASSWORD 'auth-admin-password' BYPASSRLS;
+    
+    -- Grant connection
+    GRANT CONNECT ON DATABASE budgetbee TO auth_admin;
+    ```
+    
+    Used by Better Auth for managing:
+    - User accounts
+    - Sessions
+    - Organizations
+    - Members and invitations
+    
+    <Warning>
+      `BYPASSRLS` allows this user to bypass row-level security policies. Keep credentials secure.
+    </Warning>
+  </Tab>
+  
+  <Tab title="Subscription Admin">
+    ```sql
+    -- Subscription admin user
+    CREATE ROLE subscription_admin WITH LOGIN PASSWORD 'subscription-admin-password' BYPASSRLS;
+    
+    -- Grant connection
+    GRANT CONNECT ON DATABASE budgetbee TO subscription_admin;
+    ```
+    
+    Used for subscription billing operations via Polar webhooks.
+  </Tab>
+</Tabs>
+
+### Step 3: Run Migrations
+
+Migrations must be run in a specific order:
+
+<Steps>
+  <Step title="Better Auth Tables">
+    ```bash
+    psql -U budgetbee_user -d budgetbee \
+      -f packages/core/migrations/better-auth-migrations.sql
+    ```
+    
+    Creates:
+    - `users` table
+    - `sessions` table
+    - `accounts` table (OAuth)
+    - `verifications` table
+    - `organizations`, `members`, `invitations` tables
+    - `jwks` table (JWT keys)
+  </Step>
+  
+  <Step title="Core Schema">
+    ```bash
+    psql -U budgetbee_user -d budgetbee \
+      -f packages/core/migrations/init.sql
+    ```
+    
+    Creates:
+    - Authentication helper functions
+    - Access control functions
+    - Core tables (transactions, categories, subscriptions, etc.)
+    - Database roles (anon, authenticated)
+    - Row-level security policies
+    - Triggers
+  </Step>
+  
+  <Step title="Feature Migrations">
+    Run dated migration files in order:
+    
+    ```bash
+    # Run in sorted order
+    psql -U budgetbee_user -d budgetbee \
+      -f packages/core/migrations/migration_2026_01_11_feature_flags.sql
+    
+    psql -U budgetbee_user -d budgetbee \
+      -f packages/core/migrations/migration_2026_01_19_colors_on_category.sql
+    
+    psql -U budgetbee_user -d budgetbee \
+      -f packages/core/migrations/migration_2026_02_01_dashboard_views.sql
+    ```
+  </Step>
+  
+  <Step title="Database Functions">
+    ```bash
+    psql -U budgetbee_user -d budgetbee \
+      -f packages/core/migrations/functions.sql
+    ```
+  </Step>
+</Steps>
+
+## Database Schema Overview
+
+### Core Tables
+
+Budget Bee creates these primary tables:
+
+<AccordionGroup>
+  <Accordion title="Authentication Tables">
+    - **users**: User accounts and profiles
+    - **sessions**: Active user sessions
+    - **accounts**: OAuth provider accounts
+    - **verifications**: Email verification tokens
+    - **jwks**: JWT signing keys
+  </Accordion>
+  
+  <Accordion title="Organization Tables">
+    - **organizations**: Multi-tenant organizations
+    - **members**: Organization membership
+    - **invitations**: Pending organization invitations
+  </Accordion>
+  
+  <Accordion title="Financial Tables">
+    - **transactions**: All financial transactions
+    - **categories**: Transaction categories
+    - **tags**: Transaction tags
+    - **subscriptions**: Recurring payments
+    - **dashboard_views**: Custom dashboards
+  </Accordion>
+  
+  <Accordion title="Billing Tables">
+    - **app_subscriptions**: User subscription status
+  </Accordion>
+</AccordionGroup>
+
+### Database Roles
+
+PostgreSQL roles for access control:
+
+```sql
+-- Anonymous role (not logged in)
+CREATE ROLE anon NOLOGIN;
+
+-- Authenticated role (logged in users)
+CREATE ROLE authenticated NOLOGIN;
+
+-- Grant schema access
+GRANT USAGE ON SCHEMA public TO anon, authenticated, 
+  auth_admin, subscription_admin;
+
+-- Authenticated users have full access to most tables
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO authenticated;
+
+-- But cannot use TRIGGER or TRUNCATE
+REVOKE TRIGGER, TRUNCATE ON ALL TABLES IN SCHEMA public 
+  FROM authenticated;
+```
+
+### Row-Level Security
+
+RLS policies ensure users can only access their own data:
+
+```sql
+-- Example: Transaction access policy
+CREATE POLICY limit_transactions_select ON transactions FOR SELECT
+TO authenticated USING (
+  -- Personal transactions
+  (
+    organization_id IS NULL
+    AND user_id = uid ()
+  )
+  -- OR organization transactions (with role check)
+  OR (
+    organization_id = org_id ()
+    AND (
+      check_ac_current ('transaction', 'list')
+      OR check_ac_current ('transaction', 'get')
+    )
+  )
+);
+```
+
+## Database Functions
+
+Budget Bee defines several PostgreSQL functions:
+
+### Authentication Functions
+
+<CodeGroup>
+```sql uid()
+-- Get current user ID from JWT
+CREATE OR REPLACE FUNCTION uid () RETURNS text AS $$
+DECLARE
+    user_id text;
+BEGIN
+  user_id := COALESCE(
+    current_setting('request.jwt.claims', true)::jsonb ->> 'sub',
+    current_setting('request.jwt.claims', true)::jsonb ->> 'user_id'
+  );
+  RETURN user_id;
+END
+$$ LANGUAGE plpgsql STABLE;
+```
+
+```sql org_id()
+-- Get current organization ID from JWT
+CREATE OR REPLACE FUNCTION org_id () RETURNS text AS $$
+BEGIN
+    RETURN current_setting('request.jwt.claims', true)::jsonb 
+      -> 'claims' ->> 'organization_id';
+END
+$$ LANGUAGE plpgsql STABLE;
+```
+
+```sql org_role()
+-- Get current user's organization role from JWT
+CREATE OR REPLACE FUNCTION org_role () RETURNS text AS $$
+BEGIN
+    RETURN current_setting('request.jwt.claims', true)::jsonb 
+      -> 'claims' ->> 'organization_role';
+END
+$$ LANGUAGE plpgsql STABLE;
+```
+</CodeGroup>
+
+### Access Control Functions
+
+```sql
+-- Check if role has permission for action on resource
+CREATE OR REPLACE FUNCTION check_ac (
+  p_role TEXT, 
+  p_resource TEXT, 
+  p_action TEXT
+) RETURNS BOOLEAN AS $$
+DECLARE
+  v_allowed_actions TEXT[];
+BEGIN
+  CASE p_role
+    WHEN 'owner', 'admin', 'editor' THEN
+      CASE p_resource
+        WHEN 'transaction', 'subscription', 'accounts' THEN
+          v_allowed_actions := ARRAY['list', 'get', 'create', 'update', 'delete'];
+        ELSE
+          RETURN FALSE;
+      END CASE;
+    WHEN 'viewer' THEN
+      CASE p_resource
+        WHEN 'transaction', 'subscription', 'accounts' THEN
+          v_allowed_actions := ARRAY['list', 'get'];
+        ELSE
+          RETURN FALSE;
+      END CASE;
+    ELSE
+      RETURN FALSE;
+  END CASE;
+  
+  RETURN p_action = ANY(v_allowed_actions);
+END
+$$ LANGUAGE plpgsql STABLE;
+```
+
+### Dashboard Functions
+
+```sql
+-- Aggregate transaction data for widgets
+CREATE OR REPLACE FUNCTION get_transaction_aggregate(
+  group_by_metric TEXT,
+  time_interval TEXT,
+  agg_function TEXT
+)
+RETURNS TABLE (
+  period TIMESTAMP,
+  metric_value TEXT,
+  aggregate_result NUMERIC
+) AS $$
+BEGIN
+  IF agg_function NOT IN ('sum', 'avg', 'count', 'min', 'max') THEN
+    RAISE EXCEPTION 'Invalid aggregate';
+  END IF;
+
+  RETURN QUERY EXECUTE format(
+    'SELECT
+       date_trunc(%s, transaction_date) AS period,
+       CAST(%s AS TEXT) AS metric_value,
+       %s(amount)::NUMERIC AS aggregate_result
+     FROM transactions
+     GROUP BY 1, 2
+     ORDER BY 1 DESC, 2 ASC',
+    quote_literal(time_interval),
+    quote_ident(group_by_metric),
+    quote_ident(agg_function)
+  );
+END;
+$$ LANGUAGE plpgsql;
+```
+
+## Connection Pooling
+
+Budget Bee uses connection pooling for efficiency:
+
+```typescript
+// From packages/core/db-pool.ts
+import { Pool } from "pg";
+
+const createPool = (config: PoolConfig) => {
+  return new Pool({
+    database: process.env.POSTGRES_DATABASE,
+    host: process.env.POSTGRES_HOST,
+    port: Number(process.env.POSTGRES_PORT),
+    ...config,
+  });
+};
+
+export const getAuthAdminClient = () => {
+  return createPool({
+    user: process.env.POSTGRES_AUTH_ADMIN_USER,
+    password: process.env.POSTGRES_AUTH_ADMIN_PASSWORD,
+  });
+};
+
+export const getSubscriptionAdminClient = () => {
+  return createPool({
+    user: process.env.POSTGRES_SUBSCRIPTION_ADMIN_USER,
+    password: process.env.POSTGRES_SUBSCRIPTION_ADMIN_PASSWORD,
+  });
+};
+```
+
+## PostgREST Configuration
+
+Budget Bee uses PostgREST for REST API access to the database:
+
+```ini
+# postgrest.conf
+db-uri = "postgres://authenticator:password@localhost:5432/budgetbee"
+db-schemas = "public"
+db-anon-role = "anon"
+jwt-secret = "your-jwt-secret"
+```
+
+<Tip>
+  Use a process manager like systemd to keep PostgREST running in production.
+</Tip>
+
+## Backup and Restore
+
+### Creating Backups
+
+```bash
+# Full database backup
+pg_dump -U budgetbee_user -d budgetbee -F c -f budgetbee_backup.dump
+
+# SQL format backup
+pg_dump -U budgetbee_user -d budgetbee > budgetbee_backup.sql
+
+# Backup specific table
+pg_dump -U budgetbee_user -d budgetbee -t transactions > transactions_backup.sql
+```
+
+### Restoring Backups
+
+```bash
+# Restore from custom format
+pg_restore -U budgetbee_user -d budgetbee budgetbee_backup.dump
+
+# Restore from SQL format
+psql -U budgetbee_user -d budgetbee < budgetbee_backup.sql
+```
+
+<Warning>
+  Always test backups by restoring to a test database before relying on them.
+</Warning>
+
+## Performance Optimization
+
+### Indexes
+
+Add indexes for frequently queried columns:
+
+```sql
+-- Transaction queries
+CREATE INDEX idx_transactions_user_id ON transactions(user_id);
+CREATE INDEX idx_transactions_org_id ON transactions(organization_id);
+CREATE INDEX idx_transactions_date ON transactions(transaction_date DESC);
+CREATE INDEX idx_transactions_category ON transactions(category_id);
+
+-- Category queries
+CREATE INDEX idx_categories_user_id ON categories(user_id);
+CREATE INDEX idx_categories_org_id ON categories(organization_id);
+
+-- Session lookups
+CREATE INDEX idx_sessions_user_id ON sessions(user_id);
+```
+
+### Connection Limits
+
+Adjust PostgreSQL connection settings in `postgresql.conf`:
+
+```ini
+max_connections = 100
+shared_buffers = 256MB
+effective_cache_size = 1GB
+work_mem = 4MB
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Connection refused">
+    Check:
+    - PostgreSQL is running: `sudo systemctl status postgresql`
+    - Port is correct (default 5432)
+    - `pg_hba.conf` allows connections from your IP
+    - Firewall isn't blocking the port
+  </Accordion>
+  
+  <Accordion title="Permission denied">
+    Ensure:
+    - User exists: `\du` in psql
+    - User has database access: `GRANT CONNECT ON DATABASE budgetbee TO user`
+    - User has table permissions: `GRANT SELECT ON table TO user`
+  </Accordion>
+  
+  <Accordion title="Migration failed">
+    Steps:
+    - Check migration files for syntax errors
+    - Verify migrations run in correct order
+    - Look for conflicting database objects
+    - Check PostgreSQL logs: `/var/log/postgresql/`
+  </Accordion>
+  
+  <Accordion title="RLS blocking queries">
+    Verify:
+    - JWT token includes correct user_id
+    - Organization context is set
+    - User role has necessary permissions
+    - Test with BYPASSRLS user to confirm data exists
+  </Accordion>
+</AccordionGroup>
+
+## Security Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Strong Passwords" icon="key">
+    Use long, random passwords for all database users.
+  </Card>
+  
+  <Card title="Principle of Least Privilege" icon="shield">
+    Grant only the minimum necessary permissions to each user.
+  </Card>
+  
+  <Card title="Enable SSL" icon="lock">
+    Use SSL/TLS for all database connections in production.
+  </Card>
+  
+  <Card title="Regular Backups" icon="database">
+    Automate daily backups and test restoration regularly.
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Variables" icon="gear" href="/configuration/environment-variables">
+    Configure database connection settings.
+  </Card>
+  
+  <Card title="Authentication Setup" icon="key" href="/configuration/authentication">
+    Set up Better Auth with the database.
+  </Card>
+</CardGroup>

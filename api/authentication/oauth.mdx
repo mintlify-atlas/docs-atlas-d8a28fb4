@@ -1,0 +1,342 @@
+---
+title: 'Google OAuth Authentication'
+description: 'Set up and use Google OAuth for seamless authentication'
+icon: 'google'
+---
+
+## Overview
+
+Budget Bee supports Google OAuth 2.0 authentication, allowing users to sign in with their Google accounts. Google is configured as a trusted provider for account linking.
+
+## Configuration
+
+### Environment Variables
+
+To enable Google OAuth, configure the following environment variables:
+
+```bash .env
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+NEXT_PUBLIC_APP_URL=https://yourdomain.com
+```
+
+### Google Cloud Console Setup
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select an existing one
+3. Enable the Google+ API
+4. Create OAuth 2.0 credentials:
+   - Application type: Web application
+   - Authorized redirect URIs: `{NEXT_PUBLIC_APP_URL}/api/auth/callback/google`
+
+<Note>
+  Make sure to add your production, staging, and local development URLs to the authorized redirect URIs.
+</Note>
+
+---
+
+## OAuth Flow
+
+### 1. Initiate OAuth
+
+Redirect users to the Google OAuth authorization URL.
+
+```bash
+GET /api/auth/sign-in/social/google
+```
+
+### Query Parameters
+
+<ParamField query="callbackURL" type="string">
+  Optional redirect URL after successful authentication. Defaults to `/dashboard`.
+</ParamField>
+
+### Request Example
+
+```bash
+curl -X GET "{NEXT_PUBLIC_APP_URL}/api/auth/sign-in/social/google?callbackURL=/dashboard"
+```
+
+This will redirect the user to Google's consent screen.
+
+---
+
+### 2. OAuth Callback
+
+After user grants permission, Google redirects back to your application.
+
+```bash
+GET /api/auth/callback/google
+```
+
+### Query Parameters
+
+<ParamField query="code" type="string" required>
+  Authorization code from Google
+</ParamField>
+
+<ParamField query="state" type="string">
+  State parameter for CSRF protection
+</ParamField>
+
+### What Happens Next
+
+1. Budget Bee exchanges the authorization code for an access token
+2. User information is retrieved from Google
+3. If user exists, they are signed in
+4. If new user, an account is created
+5. User is redirected to the callback URL or dashboard
+
+---
+
+## Account Linking
+
+Google is configured as a **trusted provider**, which means:
+
+- If a user signs up with email/password and later signs in with Google (same email), the accounts are automatically linked
+- Users can switch between authentication methods seamlessly
+- No duplicate accounts are created
+
+### Account Schema
+
+When a user authenticates via Google, an account record is created:
+
+<ResponseField name="id" type="string">
+  Unique account identifier
+</ResponseField>
+
+<ResponseField name="account_id" type="string">
+  Google user ID
+</ResponseField>
+
+<ResponseField name="provider_id" type="string">
+  Always "google" for Google OAuth
+</ResponseField>
+
+<ResponseField name="user_id" type="string">
+  Reference to the Budget Bee user
+</ResponseField>
+
+<ResponseField name="access_token" type="string">
+  Google OAuth access token (encrypted)
+</ResponseField>
+
+<ResponseField name="refresh_token" type="string">
+  Google OAuth refresh token (encrypted)
+</ResponseField>
+
+<ResponseField name="id_token" type="string">
+  Google ID token
+</ResponseField>
+
+<ResponseField name="access_token_expires_at" type="timestamp">
+  When the access token expires
+</ResponseField>
+
+<ResponseField name="refresh_token_expires_at" type="timestamp">
+  When the refresh token expires
+</ResponseField>
+
+<ResponseField name="created_at" type="timestamp">
+  Account creation timestamp
+</ResponseField>
+
+<ResponseField name="updated_at" type="timestamp">
+  Last update timestamp
+</ResponseField>
+
+---
+
+## OAuth Configuration
+
+Budget Bee's Google OAuth is configured with the following settings:
+
+### Prompt Behavior
+
+```javascript
+prompt: "select_account"
+```
+
+Users are always prompted to select their Google account, even if they're already signed in. This improves security and prevents account confusion.
+
+### Scopes
+
+Default scopes requested from Google:
+
+- `openid` - OpenID Connect authentication
+- `email` - Access to user's email address
+- `profile` - Access to user's basic profile information
+
+---
+
+## Client-Side Integration
+
+### React Example
+
+Using the Budget Bee auth client:
+
+```tsx
+import { authClient } from '@budgetbee/core/auth-client';
+
+function GoogleSignInButton() {
+  const handleGoogleSignIn = async () => {
+    await authClient.signIn.social({
+      provider: 'google',
+      callbackURL: '/dashboard'
+    });
+  };
+
+  return (
+    <button onClick={handleGoogleSignIn}>
+      Sign in with Google
+    </button>
+  );
+}
+```
+
+### Redirect Example
+
+Alternatively, use a simple link:
+
+```html
+<a href="{NEXT_PUBLIC_APP_URL}/api/auth/sign-in/social/google">
+  Sign in with Google
+</a>
+```
+
+---
+
+## Security Features
+
+### CSRF Protection
+
+The OAuth flow includes state parameter verification to prevent CSRF attacks.
+
+### Token Storage
+
+OAuth tokens are:
+
+- Encrypted at rest in the database
+- Never exposed to the client
+- Automatically refreshed when expired
+
+### Account Verification
+
+Users authenticating via Google:
+
+- Are automatically marked as email verified (if Google account is verified)
+- Can immediately access all features
+- Can create organizations without additional verification
+
+---
+
+## Common Issues
+
+### Redirect URI Mismatch
+
+**Error:** `redirect_uri_mismatch`
+
+**Solution:** Ensure the callback URL in Google Cloud Console exactly matches:
+```
+{NEXT_PUBLIC_APP_URL}/api/auth/callback/google
+```
+
+### Access Denied
+
+**Error:** `access_denied`
+
+**Cause:** User declined authorization or closed the consent screen.
+
+**Solution:** This is expected behavior. Users can try again.
+
+### Invalid Client
+
+**Error:** `invalid_client`
+
+**Cause:** Google Client ID or Secret is incorrect.
+
+**Solution:** Verify `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` environment variables.
+
+---
+
+## Best Practices
+
+### Multiple Environments
+
+Set up separate OAuth credentials for:
+
+- Development (localhost)
+- Staging
+- Production
+
+Each environment should have its own Google Cloud project or separate credentials.
+
+### Error Handling
+
+Always handle OAuth errors gracefully:
+
+```typescript
+try {
+  await authClient.signIn.social({ provider: 'google' });
+} catch (error) {
+  if (error.code === 'access_denied') {
+    // User cancelled
+    toast.info('Sign in cancelled');
+  } else {
+    // Other error
+    toast.error('Failed to sign in with Google');
+  }
+}
+```
+
+### Privacy Compliance
+
+Inform users about:
+
+- What data you access from Google
+- How it's used
+- Your privacy policy
+
+Display this information before initiating OAuth flow.
+
+---
+
+## Response Examples
+
+### Successful Authentication
+
+After successful OAuth, the user is redirected with a session cookie, and subsequent requests to `/api/auth/get-session` return:
+
+```json
+{
+  "user": {
+    "id": "usr_abc123",
+    "email": "user@gmail.com",
+    "name": "John Doe",
+    "email_verified": true,
+    "image": "https://lh3.googleusercontent.com/...",
+    "created_at": "2024-01-15T10:30:00Z"
+  },
+  "session": {
+    "id": "ses_xyz789",
+    "user_id": "usr_abc123",
+    "expires_at": "2024-01-16T10:30:00Z"
+  },
+  "accounts": [
+    {
+      "provider_id": "google",
+      "account_id": "google_user_id_123"
+    }
+  ]
+}
+```
+
+### Error Response
+
+```json
+{
+  "error": "oauth_error",
+  "message": "Failed to authenticate with Google",
+  "details": "Invalid authorization code"
+}
+```

@@ -1,0 +1,450 @@
+---
+title: 'Docker Compose Setup'
+description: 'Deploy Budget Bee using Docker Compose for development and production'
+---
+
+## Overview
+
+Budget Bee uses Docker Compose to orchestrate multiple services including PostgreSQL, PostgREST, and Adminer. This is the recommended approach for both local development and small production deployments.
+
+## Docker Compose Structure
+
+The infrastructure is split into modular compose files:
+
+```bash
+infra/
+├── docker-compose.yml       # Main compose file (includes all services)
+├── bu-postgres.yml         # PostgreSQL database
+├── bu-postgrest.yml        # PostgREST API server
+└── bu-adminer.yml          # Adminer database UI
+```
+
+## PostgreSQL Service
+
+The PostgreSQL service is configured in `infra/bu-postgres.yml`:
+
+```yaml
+services:
+  bu-postgres:
+    image: postgres:17.5-alpine3.22
+    container_name: bu-postgres
+    restart: unless-stopped
+    networks:
+      - bu-net
+    volumes:
+      - bu-postgres-data:/var/lib/postgresql/data
+    env_file:
+      - path: .env
+        required: true
+    ports:
+      - 5100:5432
+    environment:
+      POSTGRES_DB: budgetbee
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+```
+
+<Note>
+The database uses a persistent volume `bu-postgres-data` to ensure data survives container restarts.
+</Note>
+
+## PostgREST Service
+
+PostgREST automatically generates a REST API from your PostgreSQL schema:
+
+```yaml
+services:
+  bu-postgrest:
+    image: postgrest/postgrest:v13.0.4
+    container_name: bu-postgrest
+    restart: unless-stopped
+    networks:
+      - bu-net
+    ports:
+      - 5101:3000
+    environment:
+      PGRST_DB_URI: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@bu-postgres:5432/budgetbee
+      PGRST_DB_SCHEMA: public
+      PGRST_DB_POOL: 10
+      PGRST_JWT_SECRET: ${PGRST_JWT_SECRET}
+      PGRST_JWT_AUD: ${NEXT_PUBLIC_APP_URL}
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_DB_AUTHENTICATED_ROLE: authenticated
+    depends_on:
+      - bu-postgres
+```
+
+<Warning>
+`PGRST_JWT_SECRET` must be obtained from the web app's JWKS endpoint after initial setup. See [JWT Configuration](#jwt-configuration) below.
+</Warning>
+
+## Adminer Service
+
+Adminer provides a web-based database administration interface:
+
+```yaml
+services:
+  bu-adminer:
+    image: adminer
+    container_name: bu-adminer
+    restart: unless-stopped
+    ports:
+      - 5102:8080
+    environment:
+      ADMINER_DEFAULT_SERVER: bu-postgres
+      ADMINER_DESIGN: pepa-linha-dark
+    networks:
+      - bu-net
+```
+
+Access Adminer at `http://localhost:5102` to manage your database visually.
+
+## Network Configuration
+
+All services communicate through a custom bridge network:
+
+```yaml
+networks:
+  bu-net:
+    name: bu-net
+    driver: bridge
+
+volumes:
+  bu-postgres-data:
+    name: bu-postgres-data
+```
+
+## Environment Variables
+
+Create a `.env` file in the root directory with the following variables:
+
+```bash
+# Application URLs
+NEXT_PUBLIC_SITE_URL=http://localhost:3001
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_CURRENCY_API_URL=http://localhost:8787
+NEXT_PUBLIC_PG_REST_URL=http://localhost:5101
+
+# Database Configuration
+POSTGRES_DATABASE=budgetbee
+POSTGRES_USER=root
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5100
+POSTGRES_PASSWORD=your_secure_password
+
+# Database Admin Users
+POSTGRES_AUTH_ADMIN_USER=auth_admin
+POSTGRES_AUTH_ADMIN_PASSWORD=auth_admin_password
+POSTGRES_SUBSCRIPTION_ADMIN_USER=subscription_admin
+POSTGRES_SUBSCRIPTION_ADMIN_PASSWORD=subscription_admin_password
+
+# JWT Configuration (obtain after first run)
+PGRST_JWT_SECRET=
+
+# Better Auth
+BETTER_AUTH_SECRET=your_random_secret_here
+
+# Email (Optional)
+RESEND_API_KEY=
+SMTP_SENDER_NAME=Budget Bee
+SMTP_MAIL=noreply@yourdomain.com
+```
+
+<Tip>
+Use `openssl rand -base64 32` to generate secure random secrets for `BETTER_AUTH_SECRET` and passwords.
+</Tip>
+
+## Setup Steps
+
+<Steps>
+  <Step title="Clone the Repository">
+    ```bash
+    git clone https://github.com/sammaji/budgetbee
+    cd budgetbee
+    ```
+  </Step>
+
+  <Step title="Install Dependencies">
+    ```bash
+    pnpm install
+    ```
+  </Step>
+
+  <Step title="Create Environment Files">
+    ```bash
+    chmod +x scripts/*
+    ./scripts/post_install.sh
+    ```
+    This creates `.env` at the root and symlinks it to all packages.
+  </Step>
+
+  <Step title="Start Docker Services">
+    ```bash
+    make docker-up
+    # Or manually:
+    cd infra && docker compose up -d
+    ```
+  </Step>
+
+  <Step title="Create Database Roles">
+    ```bash
+    make create-roles
+    # Or manually:
+    ./scripts/create_roles.sh
+    ```
+  </Step>
+
+  <Step title="Run Database Migrations">
+    ```bash
+    make migrate
+    # Or manually:
+    ./scripts/run_migrations.sh
+    ```
+  </Step>
+
+  <Step title="Start the Application">
+    ```bash
+    make dev
+    # Or manually:
+    pnpm turbo dev
+    ```
+  </Step>
+
+  <Step title="Configure JWT Secret">
+    After the web app starts, visit `http://localhost:3000/api/auth/jwks` and copy the JWKS secret. Add it to your `.env` file:
+    ```bash
+    PGRST_JWT_SECRET=<jwks_secret_from_endpoint>
+    ```
+    Then restart the PostgREST container:
+    ```bash
+    cd infra && docker compose restart bu-postgrest
+    ```
+  </Step>
+</Steps>
+
+## Makefile Commands
+
+Budget Bee includes a Makefile with convenient commands:
+
+### Setup Commands
+
+```bash
+make install      # Install dependencies with pnpm
+make setup-env    # Create .env and symlink to packages
+make setup        # Full setup (install + env + db + jwks)
+```
+
+### Database Commands
+
+```bash
+make docker-up    # Start PostgreSQL and PostgREST
+make docker-down  # Stop all containers
+make create-roles # Create PostgreSQL roles
+make migrate      # Run all migrations
+make db-setup     # Full database setup
+```
+
+### Development Commands
+
+```bash
+make dev          # Start all apps (docs, site, web)
+make dummy-data   # Push test data to database
+make backfill-jwks # Fetch JWKS and update .env
+```
+
+### Utility Commands
+
+```bash
+make clean        # Remove node_modules and build artifacts
+```
+
+## JWT Configuration
+
+The PostgREST service requires a JWKS (JSON Web Key Set) secret to validate JWT tokens from Better Auth.
+
+<Steps>
+  <Step title="Start the Web App">
+    The web app must be running to generate the JWKS endpoint:
+    ```bash
+    cd apps/web && pnpm dev
+    ```
+  </Step>
+
+  <Step title="Fetch the JWKS Secret">
+    Visit the JWKS endpoint or use curl:
+    ```bash
+    curl http://localhost:3000/api/auth/jwks
+    ```
+  </Step>
+
+  <Step title="Update Environment">
+    Copy the secret to your `.env` file:
+    ```bash
+    PGRST_JWT_SECRET=<the_jwks_secret>
+    ```
+  </Step>
+
+  <Step title="Restart PostgREST">
+    ```bash
+    cd infra && docker compose restart bu-postgrest
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+You can automate this process using:
+```bash
+make backfill-jwks
+```
+</Tip>
+
+## Verifying the Installation
+
+<Steps>
+  <Step title="Check Container Status">
+    ```bash
+    docker ps
+    ```
+    You should see `bu-postgres`, `bu-postgrest`, and `bu-adminer` running.
+  </Step>
+
+  <Step title="Test PostgreSQL Connection">
+    ```bash
+    docker exec bu-postgres pg_isready -U root
+    ```
+  </Step>
+
+  <Step title="Test PostgREST API">
+    ```bash
+    curl http://localhost:5101/
+    ```
+    You should receive a JSON response with available endpoints.
+  </Step>
+
+  <Step title="Access the Web App">
+    Open `http://localhost:3000` in your browser.
+  </Step>
+</Steps>
+
+## Managing Docker Services
+
+### View Logs
+
+```bash
+# All services
+cd infra && docker compose logs -f
+
+# Specific service
+docker logs -f bu-postgres
+docker logs -f bu-postgrest
+```
+
+### Restart Services
+
+```bash
+# All services
+cd infra && docker compose restart
+
+# Specific service
+docker restart bu-postgres
+```
+
+### Stop Services
+
+```bash
+make docker-down
+# Or:
+cd infra && docker compose down
+```
+
+### Remove All Data (Reset)
+
+<Warning>
+This will delete all database data permanently!
+</Warning>
+
+```bash
+cd infra && docker compose down -v
+```
+
+## Production Considerations
+
+<CardGroup cols={2}>
+  <Card title="Use Strong Passwords" icon="lock">
+    Generate cryptographically secure passwords for all database users
+  </Card>
+  <Card title="Enable SSL/TLS" icon="shield">
+    Configure PostgreSQL to use SSL connections
+  </Card>
+  <Card title="Regular Backups" icon="database">
+    Set up automated database backups
+  </Card>
+  <Card title="Resource Limits" icon="gauge">
+    Configure memory and CPU limits for containers
+  </Card>
+</CardGroup>
+
+### Production Docker Compose
+
+For production, modify the compose file to:
+
+```yaml
+services:
+  bu-postgres:
+    # ... existing config ...
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+```
+
+## Troubleshooting
+
+### PostgreSQL Won't Start
+
+```bash
+# Check logs
+docker logs bu-postgres
+
+# Verify port is available
+lsof -i :5100
+```
+
+### PostgREST Authentication Errors
+
+Ensure `PGRST_JWT_SECRET` is correctly set:
+
+```bash
+# In your .env file
+echo $PGRST_JWT_SECRET
+
+# Restart PostgREST
+docker restart bu-postgrest
+```
+
+### Connection Refused Errors
+
+Wait for PostgreSQL to fully start:
+
+```bash
+# The db-setup command includes a wait mechanism
+make db-setup
+```
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Database Migrations" icon="database" href="/deployment/database-migrations">
+    Learn about the migration system
+  </Card>
+  <Card title="PostgreSQL Config" icon="server" href="/infrastructure/postgresql">
+    Advanced PostgreSQL configuration
+  </Card>
+  <Card title="PostgREST Setup" icon="api" href="/infrastructure/postgrest">
+    Configure the REST API
+  </Card>
+</CardGroup>

@@ -1,0 +1,430 @@
+---
+title: Invitations
+description: Invite team members to your organization
+---
+
+# Team Invitations
+
+Invite colleagues, team members, or collaborators to join your Budget Bee organization with proper role assignments.
+
+## Overview
+
+The invitation system allows:
+- **Email-based invitations** sent directly to new members
+- **Role assignment** before joining
+- **Time-limited invitations** (expire after 7 days)
+- **Email verification requirement** for security
+- **Invitation management** (cancel pending invitations)
+
+## Invitation Requirements
+
+To invite members, you must:
+- Have **owner** or **admin** role in the organization
+- Organization must have an active **Teams subscription**
+- Not exceed the **50 member limit**
+- Invitee must have or create a verified Budget Bee account
+
+## Sending Invitations
+
+<Steps>
+  <Step title="Access Organization Settings">
+    Navigate to **Organizations** → **Settings** from the sidebar.
+  </Step>
+  
+  <Step title="Open Invite Dialog">
+    Click the **Invite Member** button at the top of the page.
+  </Step>
+  
+  <Step title="Enter Invitation Details">
+    <ParamField path="email" type="string" required>
+      Email address of the person you want to invite
+    </ParamField>
+    
+    <ParamField path="role" type="enum" required>
+      Role to assign:
+      - `admin`: Can manage members and settings
+      - `editor`: Can create and edit data
+      - `viewer`: Read-only access
+    </ParamField>
+  </Step>
+  
+  <Step title="Send Invitation">
+    Click **Send Invitation**. The invitee receives an email with an invitation link.
+  </Step>
+</Steps>
+
+```tsx
+// Invitation email sent via Resend
+// From packages/core/auth.ts
+sendInvitationEmail: async data => {
+  const inviteLink = `${process.env.NEXT_PUBLIC_APP_URL}/invitations/${data.id}`;
+  
+  const { data: success, error } = await resend.emails.send({
+    from: `${process.env.SMTP_SENDER_NAME} <${process.env.SMTP_MAIL}>`,
+    to: [data.email],
+    subject: `You've been invited to join ${data.organization.name}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>You've been invited!</h2>
+        <p>${data.inviter.user.name} has invited you to join 
+           <strong>${data.organization.name}</strong> on Budgetbee.</p>
+        <p>You'll be joining as a <strong>${data.role}</strong>.</p>
+        <p style="margin: 24px 0;">
+          <a href="${inviteLink}" 
+             style="background-color: #10b981; color: white; 
+                    padding: 12px 24px; text-decoration: none; 
+                    border-radius: 6px; display: inline-block;">
+            Accept Invitation
+          </a>
+        </p>
+        <p style="color: #666; font-size: 14px;">
+          This invitation will expire in 7 days.
+        </p>
+      </div>
+    `,
+  });
+};
+```
+
+## Invitation Configuration
+
+```typescript
+// From packages/core/auth.ts
+organization({
+  invitationExpiresIn: 60 * 60 * 24 * 7, // 7 days in seconds
+  requireEmailVerificationOnInvitation: true,
+  cancelPendingInvitationsOnReInvite: true,
+  // ...
+})
+```
+
+<Note>
+  Invitations expire after 7 days for security. Expired invitations can be resent.
+</Note>
+
+## Accepting Invitations
+
+When someone receives an invitation:
+
+<Steps>
+  <Step title="Receive Email">
+    The invitee receives an email with invitation details and a link.
+  </Step>
+  
+  <Step title="Click Invitation Link">
+    Clicking the link takes them to `/invitations/[id]` in Budget Bee.
+  </Step>
+  
+  <Step title="Sign In or Sign Up">
+    If not logged in:
+    - **Existing users**: Sign in with their credentials
+    - **New users**: Create an account first
+    
+    <Warning>
+      Email verification is required before accepting invitations.
+    </Warning>
+  </Step>
+  
+  <Step title="Review Invitation">
+    The invitation page shows:
+    - Organization name
+    - Role being assigned
+    - Who sent the invitation
+  </Step>
+  
+  <Step title="Accept or Decline">
+    Choose to **Accept** or **Decline** the invitation.
+    
+    If accepted:
+    - User is added to the organization
+    - Assigned the specified role
+    - Redirected to organization settings
+  </Step>
+</Steps>
+
+```tsx
+// From apps/web/app/(app)/invitations/[id]/page.tsx
+export default function InvitationPage({ params }) {
+  const invitationId = React.use(params).id;
+  const { mutateAsync: acceptInvitation } = useAcceptInvitation();
+  const { mutateAsync: rejectInvitation } = useRejectInvitation();
+
+  const handleAccept = async () => {
+    try {
+      await acceptInvitation(invitationId);
+      router.push("/organizations/settings")
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleReject = async () => {
+    try {
+      await rejectInvitation(invitationId);
+      router.push("/home")
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Organization Invitation</CardTitle>
+        <CardDescription>
+          You've been invited to join an organization.
+        </CardDescription>
+      </CardHeader>
+      <CardFooter>
+        <Button variant="destructive" onClick={handleReject}>
+          Decline
+        </Button>
+        <Button onClick={handleAccept}>
+          Accept
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}
+```
+
+## Managing Invitations
+
+View and manage pending invitations:
+
+### Viewing Pending Invitations
+
+<Steps>
+  <Step title="Go to Organization Settings">
+    Navigate to **Organizations** → **Settings**.
+  </Step>
+  
+  <Step title="Select Pending Invitations Tab">
+    Click the **Pending Invitations** tab to see all outstanding invitations.
+  </Step>
+  
+  <Step title="Review Invitations">
+    Each invitation shows:
+    - Recipient email
+    - Assigned role
+    - Who sent it
+    - When it was sent
+    - Expiration date
+    - Status (pending, expired)
+  </Step>
+</Steps>
+
+### Canceling Invitations
+
+Owners and admins can cancel pending invitations:
+
+<Steps>
+  <Step title="Locate Invitation">
+    Find the invitation in the pending invitations list.
+  </Step>
+  
+  <Step title="Cancel Invitation">
+    Click the **Cancel** button next to the invitation.
+  </Step>
+  
+  <Step title="Confirm Cancellation">
+    Confirm that you want to cancel. The invitation link becomes invalid.
+  </Step>
+</Steps>
+
+<Tip>
+  If someone hasn't accepted an invitation, cancel and resend it. This generates a fresh link and resets the expiration.
+</Tip>
+
+### Resending Invitations
+
+If an invitation expires or is lost:
+
+1. Cancel the old invitation
+2. Send a new invitation to the same email
+3. The configuration `cancelPendingInvitationsOnReInvite: true` automatically cancels old invitations
+
+## Invitation Limits
+
+- **Maximum pending invitations**: No hard limit, but consider the 50 member maximum
+- **Invitations per user**: One active invitation per email address
+- **Re-invitation cooling period**: None, you can immediately resend
+
+## Email Verification Requirement
+
+For security, invitations require email verification:
+
+<Steps>
+  <Step title="Invitee Creates Account">
+    New users sign up with the invited email address.
+  </Step>
+  
+  <Step title="Verify Email">
+    They must verify their email before accepting the invitation.
+  </Step>
+  
+  <Step title="Accept Invitation">
+    Once verified, they can click the invitation link and accept.
+  </Step>
+</Steps>
+
+<Warning>
+  Invitations sent to unverified emails cannot be accepted until the user verifies their account.
+</Warning>
+
+## Invitation Status
+
+Invitations can have different statuses:
+
+<Accordion title="Status Types">
+  - **Pending**: Invitation sent, awaiting response
+  - **Accepted**: User accepted and joined the organization
+  - **Rejected**: User declined the invitation
+  - **Expired**: 7 days passed without acceptance
+  - **Canceled**: Invitation canceled by admin or owner
+</Accordion>
+
+## Security Considerations
+
+<CardGroup cols={2}>
+  <Card title="Email Verification" icon="envelope-circle-check">
+    Prevents unauthorized users from joining your organization.
+  </Card>
+  
+  <Card title="Time Limits" icon="clock">
+    7-day expiration reduces the window for link misuse.
+  </Card>
+  
+  <Card title="Single Use" icon="shield-check">
+    Invitation links can only be used once.
+  </Card>
+  
+  <Card title="Cancellable" icon="ban">
+    Admins can immediately invalidate invitations if needed.
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Verify Email First" icon="check">
+    Ensure the recipient's email address is correct before sending.
+  </Card>
+  
+  <Card title="Set Appropriate Roles" icon="user-shield">
+    Assign the minimum necessary role for the member's responsibilities.
+  </Card>
+  
+  <Card title="Follow Up" icon="comment">
+    Contact the recipient to let them know an invitation is coming.
+  </Card>
+  
+  <Card title="Track Expirations" icon="calendar">
+    Regularly check for expired invitations and resend as needed.
+  </Card>
+</CardGroup>
+
+## Common Invitation Workflows
+
+### Onboarding New Employee
+
+<Steps>
+  <Step title="Create Company Email">
+    Ensure the employee has a company email address.
+  </Step>
+  
+  <Step title="Send Invitation">
+    Invite with **editor** role for most employees.
+  </Step>
+  
+  <Step title="Provide Instructions">
+    Send onboarding documentation explaining Budget Bee usage.
+  </Step>
+  
+  <Step title="Verify Acceptance">
+    Check that they accepted within 1-2 days.
+  </Step>
+</Steps>
+
+### Adding External Accountant
+
+<Steps>
+  <Step title="Discuss Access Level">
+    Determine if they need **editor** (to enter data) or **viewer** (to review only).
+  </Step>
+  
+  <Step title="Send Invitation">
+    Use their professional email address.
+  </Step>
+  
+  <Step title="Set Expectations">
+    Clarify what data they'll have access to.
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Invitation email not received">
+    Check:
+    - Email address is spelled correctly
+    - Check spam/junk folder
+    - Verify sender domain isn't blocked
+    - Confirm Resend API is configured correctly
+    - Try resending the invitation
+  </Accordion>
+  
+  <Accordion title="Cannot accept invitation">
+    Verify:
+    - Email address is verified
+    - Invitation hasn't expired (check date)
+    - You're signed in with the invited email address
+    - Invitation wasn't canceled by an admin
+    - Invitation link wasn't already used
+  </Accordion>
+  
+  <Accordion title="Cannot send invitation">
+    Ensure:
+    - You have admin or owner role
+    - Organization has active Teams subscription
+    - Haven't reached 50 member limit
+    - Email address isn't already a member
+    - Email address format is valid
+  </Accordion>
+  
+  <Accordion title="Invitation expired">
+    Simple fix:
+    - Cancel the expired invitation
+    - Send a new invitation
+    - New invitation has a fresh 7-day window
+  </Accordion>
+</AccordionGroup>
+
+## Database Schema
+
+Invitations are stored in the database:
+
+```sql
+create table invitations (
+  id text primary key,
+  organization_id text references organizations(id) on delete cascade,
+  email text not null,
+  role text not null,
+  status text not null,
+  inviter_id text references users(id),
+  created_at timestamp default current_timestamp,
+  expires_at timestamp not null
+);
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Understand Roles" icon="shield" href="/organizations/roles-permissions">
+    Learn about different roles and their permissions.
+  </Card>
+  
+  <Card title="Manage Organization" icon="building" href="/organizations/overview">
+    Overview of organization features and management.
+  </Card>
+</CardGroup>

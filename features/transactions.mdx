@@ -1,0 +1,486 @@
+---
+title: Transactions
+description: Track, filter, and manage all your financial transactions
+---
+
+# Transaction Management
+
+The transactions feature is the core of Budget Bee, allowing you to record, categorize, and analyze all your financial activities.
+
+## Overview
+
+Transactions in Budget Bee can represent:
+- Income (positive amounts)
+- Expenses (negative amounts)
+- Transfers between accounts
+- Any other financial activity
+
+Each transaction includes:
+- Amount and currency
+- Transaction date
+- Category
+- Status (paid, pending, etc.)
+- Optional description and reference number
+- Tags for additional organization
+
+## Creating Transactions
+
+<Steps>
+  <Step title="Open Transaction Dialog">
+    Click the **+** button in the top right of the transactions page, or use keyboard shortcuts.
+  </Step>
+  
+  <Step title="Fill in Details">
+    Enter the transaction information:
+    
+    <ParamField path="name" type="string" required>
+      A descriptive name for the transaction (e.g., "Monthly rent payment")
+    </ParamField>
+    
+    <ParamField path="amount" type="number" required>
+      The transaction amount (use positive for income, negative for expenses)
+    </ParamField>
+    
+    <ParamField path="currency" type="string" default="USD">
+      Three-letter currency code (USD, EUR, GBP, etc.)
+    </ParamField>
+    
+    <ParamField path="transaction_date" type="date" default="Today">
+      When the transaction occurred
+    </ParamField>
+    
+    <ParamField path="category_id" type="uuid">
+      The category this transaction belongs to
+    </ParamField>
+    
+    <ParamField path="status" type="string" default="paid">
+      Transaction status: `paid`, `pending`, `failed`, or custom values
+    </ParamField>
+    
+    <ParamField path="reference_no" type="string">
+      Optional reference number (invoice number, check number, etc.)
+    </ParamField>
+    
+    <ParamField path="description" type="string">
+      Additional details about the transaction
+    </ParamField>
+  </Step>
+  
+  <Step title="Save Transaction">
+    Click **Save** to create the transaction. It will appear immediately in your transactions list.
+  </Step>
+</Steps>
+
+## Viewing Transactions
+
+The transactions page displays all your transactions in a powerful table interface:
+
+```tsx
+// Example from apps/web/app/(app)/transactions/page.tsx
+export default function Page() {
+  const isEditing = useEditorStore(s => s.is_editing);
+  const transactionTableRef = React.useRef<HTMLFormElement>(null!);
+
+  return (
+    <div>
+      <div className="flex items-start justify-between border-b p-2">
+        <div className="flex flex-wrap gap-2">
+          <FilterDialog />
+          <FilterClear />
+          <FilterPills />
+        </div>
+
+        <div className="flex gap-2">
+          <DeleteButton />
+          <EditButton />
+          <DisplayDropdown />
+        </div>
+      </div>
+
+      <div className="p-4 space-y-4">
+        <TransactionsTable ref={transactionTableRef} />
+      </div>
+    </div>
+  );
+}
+```
+
+### Table Features
+
+<CardGroup cols={2}>
+  <Card title="Sortable Columns" icon="arrow-up-arrow-down">
+    Click any column header to sort by that field (amount, date, category, etc.)
+  </Card>
+  
+  <Card title="Virtualized Scrolling" icon="gauge-high">
+    Handles thousands of transactions efficiently using TanStack Virtual
+  </Card>
+  
+  <Card title="Inline Editing" icon="pen-to-square">
+    Edit transactions directly in the table without opening dialogs
+  </Card>
+  
+  <Card title="Bulk Selection" icon="list-check">
+    Select multiple transactions for bulk operations
+  </Card>
+</CardGroup>
+
+## Filtering Transactions
+
+Budget Bee provides powerful filtering capabilities:
+
+### Available Filters
+
+<AccordionGroup>
+  <Accordion title="Date Range">
+    Filter transactions by date:
+    - Last 7 days
+    - Last 30 days
+    - Last 90 days
+    - Custom date range
+    - Specific month or year
+  </Accordion>
+  
+  <Accordion title="Category">
+    Filter by one or multiple categories. You can:
+    - Select specific categories
+    - Exclude categories
+    - View uncategorized transactions
+  </Accordion>
+  
+  <Accordion title="Amount Range">
+    Filter by transaction amount:
+    - Minimum amount
+    - Maximum amount
+    - Exact amount
+    - Income only (positive amounts)
+    - Expenses only (negative amounts)
+  </Accordion>
+  
+  <Accordion title="Status">
+    Filter by transaction status:
+    - Paid
+    - Pending
+    - Failed
+    - Custom statuses
+  </Accordion>
+  
+  <Accordion title="Currency">
+    Filter transactions by currency code (USD, EUR, GBP, etc.)
+  </Accordion>
+  
+  <Accordion title="Text Search">
+    Search transaction names and descriptions for specific keywords.
+  </Accordion>
+</AccordionGroup>
+
+### Using Filters
+
+<Steps>
+  <Step title="Open Filter Dialog">
+    Click the **Filter** button in the toolbar above the transactions table.
+  </Step>
+  
+  <Step title="Select Filter Criteria">
+    Choose your filter options. You can combine multiple filters.
+  </Step>
+  
+  <Step title="Apply Filters">
+    Click **Apply** to filter the transaction list. Active filters appear as pills above the table.
+  </Step>
+  
+  <Step title="Clear Filters">
+    Click **Clear All** or remove individual filter pills to reset.
+  </Step>
+</Steps>
+
+<Tip>
+  Filters are stored in your session, so they persist when you navigate away and return.
+</Tip>
+
+## Bulk Editing
+
+Edit multiple transactions at once:
+
+<Steps>
+  <Step title="Enable Edit Mode">
+    Click the **Edit** button in the toolbar to enable bulk edit mode.
+  </Step>
+  
+  <Step title="Select Transactions">
+    Check the boxes next to transactions you want to edit, or click the header checkbox to select all visible transactions.
+  </Step>
+  
+  <Step title="Modify Fields">
+    Edit fields directly in the table. Changes are highlighted.
+    
+    Editable fields:
+    - Amount
+    - Currency
+    - Category
+    - Status
+    - Transaction date
+    - Name and description
+  </Step>
+  
+  <Step title="Save Changes">
+    Click **Save** to commit all changes, or **Cancel** to discard them.
+  </Step>
+</Steps>
+
+<Warning>
+  Bulk edits cannot be undone. Make sure your changes are correct before saving.
+</Warning>
+
+## Categories
+
+Categories help organize your transactions:
+
+### Default Categories
+
+Budget Bee automatically creates three categories for new users:
+- **Food**: Restaurant meals, groceries, snacks
+- **Travel**: Transportation, hotels, flights
+- **Sales**: Income from sales or services
+
+### Creating Custom Categories
+
+See [Categories](/features/categories) for detailed information on creating and managing categories.
+
+## Import Transactions
+
+Import transactions from external sources:
+
+<Tabs>
+  <Tab title="CSV Import">
+    Import transactions from CSV files:
+    
+    1. Prepare a CSV file with headers:
+       ```csv
+       date,name,amount,currency,category,status
+       2024-01-15,Coffee Shop,4.50,USD,Food,paid
+       2024-01-16,Gas Station,45.00,USD,Travel,paid
+       ```
+    
+    2. Click **Import** and select your CSV file
+    3. Map CSV columns to transaction fields
+    4. Review and confirm the import
+  </Tab>
+  
+  <Tab title="Excel Import">
+    Import from Excel (.xlsx) files:
+    
+    1. Create an Excel spreadsheet with transaction data
+    2. Include columns for all required fields
+    3. Click **Import** and select your Excel file
+    4. The import wizard will guide you through the process
+  </Tab>
+  
+  <Tab title="JSON Import">
+    Import from JSON for programmatic data transfer:
+    
+    ```json
+    [
+      {
+        "name": "Office Supplies",
+        "amount": -125.50,
+        "currency": "USD",
+        "transaction_date": "2024-01-15",
+        "category": "Business",
+        "status": "paid"
+      }
+    ]
+    ```
+  </Tab>
+</Tabs>
+
+## Export Transactions
+
+Export your transaction data for backup or analysis:
+
+```tsx
+// Example from apps/web/components/settings/export-transactions.tsx
+const handleExport = async () => {
+  const db = await getDb();
+  const res = await db
+    .from("transactions")
+    .select("*")
+    .gte("transaction_date", startDateStr)
+    .lt("transaction_date", endDateStr)
+    .order("transaction_date", { ascending: false });
+
+  const transactions = res.data;
+  
+  // Format and export based on selected format
+  switch (exportFormat) {
+    case "csv":
+      downloadCSV(exportData, fileName);
+      break;
+    case "excel":
+      downloadExcel(exportData, fileName);
+      break;
+    case "json":
+      downloadJSON(exportData, fileName);
+      break;
+  }
+};
+```
+
+### Export Options
+
+<CardGroup cols={3}>
+  <Card title="CSV" icon="file-csv">
+    Comma-separated format compatible with Excel and other tools
+  </Card>
+  
+  <Card title="Excel" icon="file-excel">
+    Native Excel format (.xlsx) with proper formatting
+  </Card>
+  
+  <Card title="JSON" icon="file-code">
+    Machine-readable format for programmatic processing
+  </Card>
+</CardGroup>
+
+### Customizing Exports
+
+When exporting, you can:
+- Select specific date ranges
+- Choose which columns to include
+- Filter by category or status
+- Include or exclude transaction IDs
+
+## Transaction Status
+
+Transactions can have different statuses:
+
+<Accordion title="Status Types">
+  - **Paid**: Transaction completed successfully
+  - **Pending**: Transaction awaiting completion
+  - **Failed**: Transaction failed to process
+  - **Canceled**: Transaction was canceled
+  - **Custom**: Define your own status values
+</Accordion>
+
+Status badges use color coding for quick visual identification.
+
+## Multi-Currency Support
+
+Budget Bee supports transactions in multiple currencies:
+
+```tsx
+// Currency picker component
+<CurrencyPicker
+  value={currency}
+  onValueChange={setCurrency}
+/>
+```
+
+- Choose from 150+ currencies
+- Each transaction stores its currency
+- Filter and sort by currency
+- Currency conversion (requires currency API)
+
+<Note>
+  Currency exchange rates are fetched from the configured currency API service.
+</Note>
+
+## Database Schema
+
+Transactions are stored with the following structure:
+
+```sql
+create table transactions (
+  id uuid primary key default gen_random_uuid(),
+  amount numeric(10, 2) default 0,
+  currency varchar(3) default 'usd',
+  user_id text references users (id) on delete cascade,
+  organization_id text references organizations (id) on delete cascade,
+  external_id varchar(255),
+  category_id uuid references categories (id) on delete set null,
+  reference_no varchar(255),
+  name varchar(255),
+  description varchar(1000),
+  status varchar(8) default 'paid',
+  source varchar(255) default 'manual',
+  metadata jsonb,
+  transaction_date timestamp default current_timestamp,
+  created_at timestamp default current_timestamp,
+  updated_at timestamp default current_timestamp
+);
+```
+
+### Row-Level Security
+
+Transactions are protected by PostgreSQL row-level security policies:
+
+- Users can only access their own transactions
+- Organization members can access shared transactions based on their role
+- Different policies for SELECT, INSERT, UPDATE, and DELETE operations
+
+## API Access
+
+Access transactions programmatically using the PostgREST API:
+
+```javascript
+// Get all transactions
+const { data } = await client
+  .from('transactions')
+  .select('*')
+  .order('transaction_date', { ascending: false });
+
+// Create a transaction
+const { data, error } = await client
+  .from('transactions')
+  .insert({
+    name: 'Coffee',
+    amount: -4.50,
+    currency: 'USD',
+    transaction_date: new Date().toISOString(),
+    category_id: 'uuid-here',
+    status: 'paid'
+  });
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Regular Entry" icon="calendar-check">
+    Enter transactions regularly (daily or weekly) to maintain accurate records.
+  </Card>
+  
+  <Card title="Use Categories" icon="tags">
+    Always categorize transactions for better reporting and analysis.
+  </Card>
+  
+  <Card title="Add Descriptions" icon="memo">
+    Include descriptions for complex or important transactions.
+  </Card>
+  
+  <Card title="Regular Exports" icon="download">
+    Export your data regularly for backup purposes.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Transaction not appearing">
+    - Check active filters - you may be filtering it out
+    - Verify the transaction date is within your view range
+    - Ensure you have the correct organization selected (if using organizations)
+  </Accordion>
+  
+  <Accordion title="Cannot edit transaction">
+    - Check your organization role - viewers cannot edit
+    - Ensure you're not in view-only mode
+    - Refresh the page and try again
+  </Accordion>
+  
+  <Accordion title="Import failed">
+    - Verify your file format is correct
+    - Check that all required fields are present
+    - Ensure dates are in ISO format (YYYY-MM-DD)
+    - Verify currency codes are valid 3-letter codes
+  </Accordion>
+</AccordionGroup>

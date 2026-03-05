@@ -1,0 +1,548 @@
+---
+title: 'PostgREST Configuration'
+description: 'Configure PostgREST to serve your PostgreSQL database as a REST API'
+---
+
+## Overview
+
+PostgREST automatically generates a RESTful API from your PostgreSQL database schema. Budget Bee uses PostgREST v13.0.4 to provide secure, JWT-authenticated access to database resources.
+
+## Docker Configuration
+
+PostgREST is defined in `infra/bu-postgrest.yml`:
+
+```yaml
+services:
+  bu-postgrest:
+    image: postgrest/postgrest:v13.0.4
+    container_name: bu-postgrest
+    restart: unless-stopped
+    networks:
+      - bu-net
+    ports:
+      - 5101:3000
+    environment:
+      PGRST_DB_URI: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@bu-postgres:5432/budgetbee
+      PGRST_DB_SCHEMA: public
+      PGRST_DB_POOL: 10
+      PGRST_JWT_SECRET: ${PGRST_JWT_SECRET}
+      PGRST_JWT_AUD: ${NEXT_PUBLIC_APP_URL}
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_DB_AUTHENTICATED_ROLE: authenticated
+    depends_on:
+      - bu-postgres
+```
+
+<Note>
+PostgREST runs on port **5101** and connects to PostgreSQL through the Docker network.
+</Note>
+
+## Environment Variables
+
+### Required Variables
+
+| Variable | Description | Example |
+|----------|-------------|----------|
+| `PGRST_DB_URI` | PostgreSQL connection string | `postgres://root:password@bu-postgres:5432/budgetbee` |
+| `PGRST_DB_SCHEMA` | Schema to expose via API | `public` |
+| `PGRST_JWT_SECRET` | JWKS secret for token validation | Obtained from `/api/auth/jwks` |
+| `PGRST_JWT_AUD` | Expected JWT audience claim | `http://localhost:3000` |
+| `PGRST_DB_ANON_ROLE` | Role for unauthenticated requests | `anon` |
+| `PGRST_DB_AUTHENTICATED_ROLE` | Role for authenticated requests | `authenticated` |
+
+### Optional Variables
+
+| Variable | Description | Default |
+|----------|-------------|----------|
+| `PGRST_DB_POOL` | Max database connections | `10` |
+| `PGRST_DB_POOL_TIMEOUT` | Connection timeout (seconds) | `10` |
+| `PGRST_SERVER_PORT` | Internal port | `3000` |
+| `PGRST_LOG_LEVEL` | Logging level | `error` |
+
+## JWT Authentication
+
+PostgREST validates JWT tokens issued by Better Auth to secure API access.
+
+### JWT Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant NextJS as Next.js App
+    participant PostgREST
+    participant PostgreSQL
+    
+    Client->>NextJS: Login Request
+    NextJS->>PostgreSQL: Validate Credentials
+    PostgreSQL-->>NextJS: User Data
+    NextJS->>NextJS: Generate JWT (Better Auth)
+    NextJS-->>Client: Return JWT Token
+    
+    Client->>PostgREST: API Request + JWT
+    PostgREST->>PostgREST: Validate JWT with JWKS
+    PostgREST->>PostgreSQL: Execute as 'authenticated' role
+    PostgreSQL->>PostgreSQL: Apply RLS policies
+    PostgreSQL-->>PostgREST: Filtered Results
+    PostgREST-->>Client: JSON Response
+```
+
+### Obtaining JWKS Secret
+
+The `PGRST_JWT_SECRET` must be obtained from Better Auth's JWKS endpoint:
+
+<Steps>
+  <Step title="Start the Next.js Application">
+    ```bash
+    cd apps/web && pnpm dev
+    ```
+  </Step>
+
+  <Step title="Fetch JWKS Secret">
+    ```bash
+    curl http://localhost:3000/api/auth/jwks
+    ```
+    
+    Response:
+    ```json
+    {
+      "keys": [
+        {
+          "kty": "RSA",
+          "e": "AQAB",
+          "n": "<very_long_base64_string>",
+          "kid": "<key_id>"
+        }
+      ]
+    }
+    ```
+  </Step>
+
+  <Step title="Extract Secret">
+    Copy the **entire JSON response** and set it as `PGRST_JWT_SECRET`:
+    
+    ```bash
+    PGRST_JWT_SECRET='{"keys":[{"kty":"RSA","e":"AQAB","n":"..."}]}'
+    ```
+  </Step>
+
+  <Step title="Restart PostgREST">
+    ```bash
+    docker restart bu-postgrest
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+Automate this with:
+```bash
+make backfill-jwks
+```
+</Tip>
+
+### JWT Token Structure
+
+Better Auth generates JWTs with this structure:
+
+```json
+{
+  "sub": "user_123",           // User ID
+  "user_id": "user_123",
+  "email": "user@example.com",
+  "aud": "http://localhost:3000",
+  "claims": {
+    "organization_id": "org_456",
+    "organization_role": "admin"  // owner, admin, editor, viewer
+  },
+  "exp": 1234567890,
+  "iat": 1234560000
+}
+```
+
+PostgreSQL functions extract these values:
+
+```sql
+-- Get user ID
+SELECT uid();  -- Returns 'user_123'
+
+-- Get organization ID
+SELECT org_id();  -- Returns 'org_456'
+
+-- Get organization role
+SELECT org_role();  -- Returns 'admin'
+```
+
+## API Endpoints
+
+PostgREST automatically generates endpoints for all tables and functions:
+
+### Table Endpoints
+
+| HTTP Method | Endpoint | Description |
+|-------------|----------|-------------|
+| `GET` | `/transactions` | List all transactions (filtered by RLS) |
+| `GET` | `/transactions?id=eq.<uuid>` | Get specific transaction |
+| `POST` | `/transactions` | Create new transaction |
+| `PATCH` | `/transactions?id=eq.<uuid>` | Update transaction |
+| `DELETE` | `/transactions?id=eq.<uuid>` | Delete transaction |
+
+### Function Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /rpc/get_filtered_transactions` | Dynamic transaction filtering |
+| `POST /rpc/get_transaction_aggregate` | Transaction aggregations |
+| `POST /rpc/get_transaction_stat` | Single stat (sum, avg, count) |
+| `POST /rpc/delete_category` | Safe category deletion |
+
+### Example Requests
+
+#### List Transactions
+
+```bash
+curl -X GET 'http://localhost:5101/transactions' \
+  -H "Authorization: Bearer <jwt_token>"
+```
+
+#### Create Transaction
+
+```bash
+curl -X POST 'http://localhost:5101/transactions' \
+  -H "Authorization: Bearer <jwt_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "amount": -50.00,
+    "name": "Grocery Shopping",
+    "category_id": "<category_uuid>",
+    "transaction_date": "2026-03-05T10:30:00Z"
+  }'
+```
+
+#### Filter Transactions
+
+```bash
+curl -X POST 'http://localhost:5101/rpc/get_filtered_transactions' \
+  -H "Authorization: Bearer <jwt_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filters": [
+      {"field": "amount", "operation": "gt", "value": 100},
+      {"field": "transaction_date", "operation": "from", "value": "2026-01-01"}
+    ]
+  }'
+```
+
+#### Get Transaction Statistics
+
+```bash
+curl -X POST 'http://localhost:5101/rpc/get_transaction_stat' \
+  -H "Authorization: Bearer <jwt_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "p_user_id": "user_123",
+    "p_organization_id": null,
+    "p_filters": [],
+    "p_aggregate_fn": "sum",
+    "p_transaction_type": "balance"
+  }'
+```
+
+## Query Operators
+
+PostgREST supports rich query operators:
+
+### Comparison Operators
+
+```bash
+# Equal
+GET /transactions?amount=eq.100
+
+# Greater than
+GET /transactions?amount=gt.100
+
+# Less than or equal
+GET /transactions?amount=lte.50
+
+# Not equal
+GET /transactions?status=neq.paid
+```
+
+### Pattern Matching
+
+```bash
+# Like (case-sensitive)
+GET /transactions?name=like.*grocery*
+
+# ilike (case-insensitive)
+GET /transactions?name=ilike.*GROCERY*
+```
+
+### Ordering
+
+```bash
+# Descending
+GET /transactions?order=transaction_date.desc
+
+# Multiple columns
+GET /transactions?order=transaction_date.desc,amount.asc
+```
+
+### Limiting
+
+```bash
+# Limit results
+GET /transactions?limit=10
+
+# Pagination
+GET /transactions?limit=10&offset=20
+```
+
+### Selecting Columns
+
+```bash
+# Specific columns
+GET /transactions?select=id,name,amount
+
+# With relations
+GET /transactions?select=id,name,category:categories(name,color)
+```
+
+## Role-Based Access
+
+PostgREST uses PostgreSQL roles to enforce security:
+
+### Anonymous Requests
+
+Requests without a JWT use the `anon` role:
+
+```bash
+curl http://localhost:5101/transactions
+```
+
+Result: Empty array (anon has no table access)
+
+### Authenticated Requests
+
+Requests with a valid JWT use the `authenticated` role:
+
+```bash
+curl http://localhost:5101/transactions \
+  -H "Authorization: Bearer <jwt_token>"
+```
+
+Result: Only transactions matching RLS policies (user's own data or organization data)
+
+### Row-Level Security
+
+RLS policies automatically filter results based on JWT claims:
+
+```sql
+-- User sees only their transactions
+CREATE POLICY limit_transactions_select ON transactions FOR SELECT
+  TO authenticated USING (
+    (organization_id IS NULL AND user_id = uid())
+    OR (organization_id = org_id() AND check_ac_current('transaction', 'list'))
+  );
+```
+
+## Error Handling
+
+PostgREST returns standard HTTP status codes:
+
+| Status | Meaning |
+|--------|----------|
+| `200` | Success |
+| `201` | Created |
+| `204` | No Content (successful delete) |
+| `400` | Bad Request (invalid query) |
+| `401` | Unauthorized (missing/invalid JWT) |
+| `403` | Forbidden (RLS policy violation) |
+| `404` | Not Found |
+| `500` | Internal Server Error |
+
+### Example Error Response
+
+```json
+{
+  "code": "42501",
+  "details": "Insufficient privileges for user",
+  "hint": null,
+  "message": "permission denied for table transactions"
+}
+```
+
+## Performance Optimization
+
+### Connection Pooling
+
+Configure connection pool size:
+
+```yaml
+environment:
+  PGRST_DB_POOL: 20  # Increase for high traffic
+  PGRST_DB_POOL_TIMEOUT: 10
+```
+
+### Prefer Counts
+
+Get total count without fetching all rows:
+
+```bash
+curl -X HEAD 'http://localhost:5101/transactions' \
+  -H "Prefer: count=exact"
+```
+
+### Limiting Results
+
+Always use limits for large datasets:
+
+```bash
+GET /transactions?limit=100&offset=0
+```
+
+## Monitoring
+
+### Check PostgREST Status
+
+```bash
+curl http://localhost:5101/
+```
+
+### View Logs
+
+```bash
+docker logs -f bu-postgrest
+```
+
+### Enable Debug Logging
+
+```yaml
+environment:
+  PGRST_LOG_LEVEL: info  # Options: crit, error, warn, info
+```
+
+## Security Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Always Use HTTPS" icon="lock">
+    In production, put PostgREST behind a reverse proxy with SSL
+  </Card>
+  <Card title="Validate JWT Audience" icon="shield">
+    Ensure `PGRST_JWT_AUD` matches your application URL
+  </Card>
+  <Card title="Rotate JWKS Regularly" icon="rotate">
+    Update JWKS secrets periodically for security
+  </Card>
+  <Card title="Limit API Rate" icon="gauge">
+    Use nginx or similar to rate-limit requests
+  </Card>
+</CardGroup>
+
+### Production Reverse Proxy (nginx)
+
+```nginx
+server {
+  listen 443 ssl;
+  server_name api.yourdomain.com;
+
+  ssl_certificate /path/to/cert.pem;
+  ssl_certificate_key /path/to/key.pem;
+
+  location / {
+    proxy_pass http://localhost:5101;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    
+    # Rate limiting
+    limit_req zone=api burst=20 nodelay;
+  }
+}
+```
+
+## Troubleshooting
+
+### JWT Validation Errors
+
+```json
+{"message":"JWT invalid"}
+```
+
+**Solution**: Verify `PGRST_JWT_SECRET` matches JWKS endpoint:
+
+```bash
+curl http://localhost:3000/api/auth/jwks
+# Update .env with the response
+docker restart bu-postgrest
+```
+
+### Connection Refused
+
+```
+connection to server at "bu-postgres" failed
+```
+
+**Solution**: Ensure PostgreSQL is running:
+
+```bash
+docker ps | grep bu-postgres
+docker logs bu-postgres
+```
+
+### Permission Denied Errors
+
+```json
+{"message":"permission denied for table transactions"}
+```
+
+**Solution**: Check RLS policies and JWT claims:
+
+```sql
+SELECT * FROM pg_policies WHERE tablename = 'transactions';
+SELECT uid(), org_id(), org_role();
+```
+
+## Advanced Configuration
+
+### Custom Schema
+
+Expose multiple schemas:
+
+```yaml
+environment:
+  PGRST_DB_SCHEMA: public,api
+```
+
+### OpenAPI Spec
+
+PostgREST auto-generates OpenAPI documentation:
+
+```bash
+curl http://localhost:5101/ -H "Accept: application/openapi+json" > openapi.json
+```
+
+### Pre-Request Hooks
+
+Use PostgreSQL functions as middleware:
+
+```sql
+CREATE OR REPLACE FUNCTION api_middleware()
+RETURNS void AS $$
+BEGIN
+  -- Custom logic before every request
+  RAISE LOG 'Request from user: %', uid();
+END;
+$$ LANGUAGE plpgsql;
+```
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="PostgreSQL Config" icon="database" href="/infrastructure/postgresql">
+    Optimize database settings
+  </Card>
+  <Card title="Redis Caching" icon="memory" href="/infrastructure/redis">
+    Add caching layer
+  </Card>
+  <Card title="API Reference" icon="book" href="/api/authentication/overview">
+    Explore all API endpoints
+  </Card>
+</CardGroup>

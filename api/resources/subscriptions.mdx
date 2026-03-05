@@ -1,0 +1,513 @@
+---
+title: 'Subscriptions'
+description: 'Track and manage recurring subscription expenses'
+icon: 'repeat'
+---
+
+## Overview
+
+Subscriptions in Budget Bee help you track recurring expenses like software subscriptions, memberships, and regular services.
+
+### Base URL
+
+```
+{NEXT_PUBLIC_PG_REST_URL}/subscriptions
+```
+
+### Authorization
+
+All subscription endpoints require authentication via JWT token:
+
+```bash
+Authorization: Bearer {JWT_TOKEN}
+```
+
+---
+
+## Subscription Schema
+
+<ResponseField name="id" type="uuid">
+  Unique subscription identifier
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  Subscription name/title (required)
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Detailed description
+</ResponseField>
+
+<ResponseField name="amount" type="numeric">
+  Subscription cost per billing period
+</ResponseField>
+
+<ResponseField name="logo_url" type="string">
+  URL to the subscription service logo
+</ResponseField>
+
+<ResponseField name="period" type="enum">
+  Billing period: `monthly`, `yearly`, `quarterly`, `semi-annually`, `weekly`, `daily`
+</ResponseField>
+
+<ResponseField name="interval_in_days" type="integer">
+  Custom interval in days (for non-standard periods)
+</ResponseField>
+
+<ResponseField name="category_id" type="uuid">
+  Category reference
+</ResponseField>
+
+<ResponseField name="user_id" type="string">
+  Owner user ID
+</ResponseField>
+
+<ResponseField name="organization_id" type="string">
+  Organization ID (null for personal subscriptions)
+</ResponseField>
+
+---
+
+## List Subscriptions
+
+Retrieve all subscriptions for the authenticated user or organization.
+
+```bash
+GET /subscriptions
+```
+
+### Query Parameters
+
+<ParamField query="select" type="string">
+  Columns to return. Default: `*` (all columns)
+</ParamField>
+
+<ParamField query="order" type="string">
+  Sort order. Example: `title.asc` or `amount.desc`
+</ParamField>
+
+<ParamField query="period" type="string">
+  Filter by billing period
+</ParamField>
+
+<ParamField query="category_id" type="string">
+  Filter by category ID
+</ParamField>
+
+### Request Example
+
+```bash
+curl -X GET "{NEXT_PUBLIC_PG_REST_URL}/subscriptions?order=title.asc" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Content-Type: application/json"
+```
+
+### Response Example
+
+```json
+[
+  {
+    "id": "sub_abc123",
+    "title": "Netflix Premium",
+    "description": "Streaming service subscription",
+    "amount": 19.99,
+    "logo_url": "https://example.com/logos/netflix.png",
+    "period": "monthly",
+    "interval_in_days": null,
+    "category_id": "cat_entertainment_123",
+    "user_id": "usr_abc123",
+    "organization_id": null
+  },
+  {
+    "id": "sub_def456",
+    "title": "Adobe Creative Cloud",
+    "description": "Design software suite",
+    "amount": 54.99,
+    "logo_url": "https://example.com/logos/adobe.png",
+    "period": "monthly",
+    "interval_in_days": null,
+    "category_id": "cat_software_456",
+    "user_id": "usr_abc123",
+    "organization_id": "org_789"
+  }
+]
+```
+
+---
+
+## Get Subscription
+
+Retrieve a single subscription by ID.
+
+```bash
+GET /subscriptions?id=eq.{subscription_id}
+```
+
+### Request Example
+
+```bash
+curl -X GET "{NEXT_PUBLIC_PG_REST_URL}/subscriptions?id=eq.sub_abc123" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Accept: application/vnd.pgrst.object+json"
+```
+
+### Response Example
+
+```json
+{
+  "id": "sub_abc123",
+  "title": "Netflix Premium",
+  "description": "Streaming service subscription",
+  "amount": 19.99,
+  "period": "monthly",
+  "category_id": "cat_entertainment_123"
+}
+```
+
+---
+
+## Create Subscription
+
+Create a new subscription to track.
+
+```bash
+POST /subscriptions
+```
+
+### Request Body
+
+<ParamField body="title" type="string" required>
+  Subscription name/title
+</ParamField>
+
+<ParamField body="amount" type="numeric" required>
+  Cost per billing period
+</ParamField>
+
+<ParamField body="period" type="enum" required>
+  Billing period: `monthly`, `yearly`, `quarterly`, `semi-annually`, `weekly`, `daily`
+</ParamField>
+
+<ParamField body="description" type="string">
+  Detailed description
+</ParamField>
+
+<ParamField body="logo_url" type="string">
+  URL to service logo
+</ParamField>
+
+<ParamField body="interval_in_days" type="integer">
+  Custom interval for non-standard periods
+</ParamField>
+
+<ParamField body="category_id" type="uuid">
+  Category reference
+</ParamField>
+
+### Request Example
+
+```bash
+curl -X POST "{NEXT_PUBLIC_PG_REST_URL}/subscriptions" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: return=representation" \
+  -d '{
+    "title": "Spotify Premium",
+    "description": "Music streaming service",
+    "amount": 9.99,
+    "period": "monthly",
+    "logo_url": "https://example.com/logos/spotify.png",
+    "category_id": "cat_entertainment_123"
+  }'
+```
+
+### Response Example
+
+```json
+{
+  "id": "sub_ghi789",
+  "title": "Spotify Premium",
+  "description": "Music streaming service",
+  "amount": 9.99,
+  "logo_url": "https://example.com/logos/spotify.png",
+  "period": "monthly",
+  "interval_in_days": null,
+  "category_id": "cat_entertainment_123",
+  "user_id": "usr_abc123",
+  "organization_id": null
+}
+```
+
+---
+
+## Update Subscription
+
+Update an existing subscription.
+
+```bash
+PATCH /subscriptions?id=eq.{subscription_id}
+```
+
+### Request Example
+
+```bash
+curl -X PATCH "{NEXT_PUBLIC_PG_REST_URL}/subscriptions?id=eq.sub_abc123" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: return=representation" \
+  -d '{
+    "amount": 22.99,
+    "description": "Updated to premium plus plan"
+  }'
+```
+
+### Response Example
+
+```json
+{
+  "id": "sub_abc123",
+  "title": "Netflix Premium",
+  "amount": 22.99,
+  "description": "Updated to premium plus plan"
+}
+```
+
+---
+
+## Delete Subscription
+
+Delete a subscription permanently.
+
+```bash
+DELETE /subscriptions?id=eq.{subscription_id}
+```
+
+### Request Example
+
+```bash
+curl -X DELETE "{NEXT_PUBLIC_PG_REST_URL}/subscriptions?id=eq.sub_abc123" \
+  -H "Authorization: Bearer {JWT_TOKEN}"
+```
+
+### Response
+
+Returns `204 No Content` on successful deletion.
+
+---
+
+## Billing Periods
+
+### Available Periods
+
+<Expandable title="Monthly">
+  Billed every month (30 days)
+  
+  ```json
+  {
+    "period": "monthly",
+    "interval_in_days": null
+  }
+  ```
+</Expandable>
+
+<Expandable title="Yearly">
+  Billed annually (365 days)
+  
+  ```json
+  {
+    "period": "yearly",
+    "interval_in_days": null
+  }
+  ```
+</Expandable>
+
+<Expandable title="Quarterly">
+  Billed every 3 months (90 days)
+  
+  ```json
+  {
+    "period": "quarterly",
+    "interval_in_days": null
+  }
+  ```
+</Expandable>
+
+<Expandable title="Semi-annually">
+  Billed every 6 months (180 days)
+  
+  ```json
+  {
+    "period": "semi-annually",
+    "interval_in_days": null
+  }
+  ```
+</Expandable>
+
+<Expandable title="Weekly">
+  Billed every week (7 days)
+  
+  ```json
+  {
+    "period": "weekly",
+    "interval_in_days": null
+  }
+  ```
+</Expandable>
+
+<Expandable title="Daily">
+  Billed every day
+  
+  ```json
+  {
+    "period": "daily",
+    "interval_in_days": null
+  }
+  ```
+</Expandable>
+
+<Expandable title="Custom Interval">
+  Custom billing period (specify days)
+  
+  ```json
+  {
+    "period": "monthly",
+    "interval_in_days": 45
+  }
+  ```
+  
+  Use `interval_in_days` to override the default period length.
+</Expandable>
+
+---
+
+## Subscription Status Tracking
+
+<Note>
+  The `subscriptions` table tracks subscription definitions. For payment status tracking, use the separate `app_subscriptions` table which tracks active subscriptions, payment status, and billing periods.
+</Note>
+
+### Active Subscriptions Query
+
+To get currently active paid subscriptions (for the app itself):
+
+```bash
+GET /app_subscriptions?status=eq.sub_active&period_start=lte.now&period_end=gte.now
+```
+
+---
+
+## Calculate Annual Cost
+
+Calculate the yearly cost of subscriptions:
+
+### Monthly Subscriptions
+
+```javascript
+const annualCost = monthlyAmount * 12;
+// Example: $9.99/month = $119.88/year
+```
+
+### Custom Periods
+
+```javascript
+const daysPerYear = 365;
+const annualCost = (subscriptionAmount / intervalInDays) * daysPerYear;
+// Example: $30 every 45 days = $243.33/year
+```
+
+---
+
+## Filter Examples
+
+### Get All Monthly Subscriptions
+
+```bash
+GET /subscriptions?period=eq.monthly
+```
+
+### Get Subscriptions Over $50/month
+
+```bash
+GET /subscriptions?amount=gt.50&period=eq.monthly
+```
+
+### Get Subscriptions by Category
+
+```bash
+GET /subscriptions?category_id=eq.cat_software_456
+```
+
+### Search by Title
+
+```bash
+GET /subscriptions?title=ilike.*netflix*
+```
+
+---
+
+## Access Control
+
+Subscription access follows role-based permissions:
+
+<Card title="Owner, Admin, Editor" icon="check">
+  Full access: list, get, create, update, delete
+</Card>
+
+<Card title="Viewer" icon="eye">
+  Read-only: list, get
+</Card>
+
+### Personal vs Organization Subscriptions
+
+- **Personal**: `organization_id` is `null`, accessible only by the user
+- **Organization**: `organization_id` is set, accessible by organization members based on role
+
+---
+
+## Integration with Transactions
+
+Create recurring transactions for subscriptions:
+
+```bash
+POST /transactions
+```
+
+```json
+{
+  "amount": 19.99,
+  "name": "Netflix Premium - January 2024",
+  "category_id": "cat_entertainment_123",
+  "status": "paid",
+  "transaction_date": "2024-01-15T00:00:00Z",
+  "metadata": {
+    "subscription_id": "sub_abc123",
+    "recurring": true,
+    "period": "monthly"
+  }
+}
+```
+
+---
+
+## Best Practices
+
+### Tracking Subscriptions
+
+1. **Create subscription records** for each recurring service
+2. **Link to transactions** using metadata
+3. **Set reminders** for subscription renewals
+4. **Review regularly** to identify unused subscriptions
+
+### Cost Management
+
+1. **Track annual costs** to understand total spending
+2. **Group by category** to see spending patterns
+3. **Monitor price changes** by updating amounts when notified
+4. **Cancel unused services** to reduce expenses
+
+### Organization
+
+1. **Use consistent naming** - Include plan tier in title (e.g., "Netflix Premium")
+2. **Add logos** - Visual identification helps with quick scanning
+3. **Detailed descriptions** - Note what the subscription includes
+4. **Categorize properly** - Use categories like "Software", "Entertainment", "Services"

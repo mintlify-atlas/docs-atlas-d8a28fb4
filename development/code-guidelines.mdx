@@ -1,0 +1,447 @@
+---
+title: 'Code Guidelines'
+description: 'Coding standards and best practices for BudgetBee'
+icon: 'code'
+---
+
+## Overview
+
+BudgetBee follows a set of coding standards to ensure consistency, quality, and maintainability across the codebase. We follow the **Google Style Guidelines** as our foundation.
+
+<Note>
+Consistency is key. When in doubt, follow the patterns established in the existing codebase.
+</Note>
+
+## Primary Branch
+
+<Warning>
+**Never break the main branch.** If `main` breaks, fixing it should be your top priority.
+</Warning>
+
+We use `main` as our primary branch. All development should:
+
+- Branch off from `main`
+- Be tested thoroughly before merging
+- Pass all CI checks
+- Be reviewed by at least one other developer
+
+## Code Formatting
+
+BudgetBee uses **Prettier** for consistent code formatting across the codebase.
+
+### Configuration
+
+Prettier is configured at the root level with plugins for:
+
+- TypeScript/JavaScript
+- Tailwind CSS class sorting
+- Import organization
+- SQL formatting
+
+### Available Commands
+
+<CodeGroup>
+```bash Format All
+# Format all files
+pnpm format
+```
+
+```bash Format TypeScript
+# Format TypeScript files only
+pnpm format:ts
+```
+
+```bash Format SQL
+# Format SQL migration files
+pnpm format:sql
+```
+
+```bash Format Markdown
+# Format Markdown documentation
+pnpm format:md
+```
+
+```bash Format JSON
+# Format JSON configuration files
+pnpm format:json
+```
+</CodeGroup>
+
+<Note>
+**Run formatting before committing** - Set up a pre-commit hook to automatically format code.
+</Note>
+
+## TypeScript Guidelines
+
+### Type Safety
+
+- Always use explicit types for function parameters and return values
+- Avoid using `any` - use `unknown` if type is truly unknown
+- Leverage TypeScript's type inference where appropriate
+- Use strict mode
+
+### Example
+
+```typescript
+// Good
+function calculateTotal(items: LineItem[]): number {
+  return items.reduce((sum, item) => sum + item.price, 0);
+}
+
+// Bad
+function calculateTotal(items: any) {
+  return items.reduce((sum: any, item: any) => sum + item.price, 0);
+}
+```
+
+## API Type Naming Conventions
+
+<Card title="API Type Naming" icon="brackets-curly">
+  Follow a consistent pattern for API endpoint types
+</Card>
+
+### Pattern
+
+All types for API endpoints should follow this format:
+
+```
+<Method><Object><Type>
+```
+
+### Type Suffixes
+
+- `QueryParams` - URL query parameters
+- `ResponseBody` - Response data structure
+- `RequestBody` - Request payload structure
+
+### Examples
+
+```typescript
+// Query parameters for POST /categories
+interface PostCategoryQueryParams {
+  organizationId: string;
+}
+
+// Response body for POST /categories
+interface PostCategoriesResponseBody {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
+// Request body for PUT /transactions/:id
+interface PutTransactionRequestBody {
+  amount: number;
+  description: string;
+  categoryId: string;
+}
+
+// Response for GET /transactions
+interface GetTransactionsResponseBody {
+  transactions: Transaction[];
+  total: number;
+  page: number;
+}
+```
+
+## Date Serialization
+
+<Warning>
+**All dates must be in ISO format (YYYY-MM-DD)** when sent from client to server.
+</Warning>
+
+This applies to:
+- Query parameters
+- Request body
+- URL path segments
+- Form data
+
+### Example
+
+```typescript
+// Good
+const params = new URLSearchParams({
+  startDate: '2024-01-15',  // ISO format
+  endDate: '2024-02-15'
+});
+
+// Bad
+const params = new URLSearchParams({
+  startDate: '1/15/2024',  // US format
+  endDate: '15-02-2024'    // European format
+});
+```
+
+## Database Guidelines
+
+### Index Naming
+
+All database indexes should follow this format:
+
+```
+idx_<table_name>_<column_names>
+```
+
+### Examples
+
+```sql
+-- Single column index
+CREATE INDEX idx_transactions_user_id 
+  ON transactions(user_id);
+
+-- Multi-column index
+CREATE INDEX idx_transactions_user_date 
+  ON transactions(user_id, transaction_date);
+
+-- Unique index
+CREATE UNIQUE INDEX idx_users_email 
+  ON users(email);
+```
+
+### Migration Naming
+
+All migration files should follow this format:
+
+```
+migration_YYYY_MM_DD_<description>.sql
+```
+
+### Examples
+
+```
+migration_2024_01_15_add_categories_table.sql
+migration_2024_01_20_add_user_preferences.sql
+migration_2024_02_01_add_transaction_tags.sql
+```
+
+<Note>
+Migrations are run in alphabetical order, so the date prefix ensures correct execution order.
+</Note>
+
+## React Component Guidelines
+
+### Component Structure
+
+```tsx
+// 1. Imports
+import { useState } from 'react';
+import { Button } from '@budgetbee/ui/core/button';
+import { cn } from '@budgetbee/ui/lib/utils';
+
+// 2. Types/Interfaces
+interface MyComponentProps {
+  title: string;
+  onSubmit: () => void;
+  className?: string;
+}
+
+// 3. Component
+export function MyComponent({ 
+  title, 
+  onSubmit, 
+  className 
+}: MyComponentProps) {
+  // 4. Hooks
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // 5. Handlers
+  const handleClick = async () => {
+    setIsLoading(true);
+    await onSubmit();
+    setIsLoading(false);
+  };
+  
+  // 6. Render
+  return (
+    <div className={cn('p-4', className)}>
+      <h2>{title}</h2>
+      <Button onClick={handleClick} disabled={isLoading}>
+        Submit
+      </Button>
+    </div>
+  );
+}
+```
+
+### Naming Conventions
+
+- Use PascalCase for components: `MyComponent`
+- Use camelCase for functions: `handleClick`
+- Use camelCase for variables: `isLoading`
+- Prefix boolean props with `is`, `has`, `should`: `isOpen`, `hasError`
+- Prefix event handlers with `on`: `onClick`, `onSubmit`
+
+## Import Organization
+
+Imports are automatically organized by Prettier with the following order:
+
+1. External packages
+2. Internal packages (`@budgetbee/*`)
+3. Relative imports
+4. Type imports
+
+```typescript
+// 1. External
+import { useState } from 'react';
+import { z } from 'zod';
+
+// 2. Internal
+import { Button } from '@budgetbee/ui/core/button';
+import { db } from '@budgetbee/core/db';
+
+// 3. Relative
+import { Header } from './components/header';
+import { formatCurrency } from '../utils/format';
+
+// 4. Types
+import type { User } from './types';
+```
+
+## File Naming
+
+- Use kebab-case for files: `user-profile.tsx`
+- Use PascalCase for component files: `UserProfile.tsx` (optional)
+- Use lowercase for utility files: `utils.ts`, `constants.ts`
+- Use `.tsx` for React components
+- Use `.ts` for TypeScript utilities
+
+## Testing
+
+### Test File Location
+
+Place test files next to the code they test:
+
+```
+components/
+├── button.tsx
+└── button.test.tsx
+```
+
+### Test Naming
+
+```typescript
+describe('Button', () => {
+  it('should render with text', () => {
+    // test implementation
+  });
+  
+  it('should call onClick when clicked', () => {
+    // test implementation
+  });
+  
+  it('should be disabled when isLoading is true', () => {
+    // test implementation
+  });
+});
+```
+
+## Git Commit Messages
+
+Follow conventional commit format:
+
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+### Types
+
+- `feat` - New feature
+- `fix` - Bug fix
+- `docs` - Documentation changes
+- `style` - Code style changes (formatting)
+- `refactor` - Code refactoring
+- `test` - Adding or updating tests
+- `chore` - Maintenance tasks
+
+### Examples
+
+```
+feat(auth): add email verification
+
+fix(transactions): correct date parsing in import
+
+docs(api): update authentication endpoints
+
+refactor(core): simplify database connection logic
+```
+
+## Code Review Guidelines
+
+When reviewing code:
+
+<Steps>
+  <Step title="Check functionality">
+    Does the code work as intended? Test the changes locally.
+  </Step>
+  
+  <Step title="Verify tests">
+    Are there tests? Do they cover edge cases?
+  </Step>
+  
+  <Step title="Review readability">
+    Is the code easy to understand? Are variable names clear?
+  </Step>
+  
+  <Step title="Look for issues">
+    Are there performance issues? Security concerns? Type safety problems?
+  </Step>
+  
+  <Step title="Check consistency">
+    Does it follow our guidelines? Is it consistent with the existing codebase?
+  </Step>
+</Steps>
+
+## Best Practices
+
+<Card title="Be Explicit" icon="eye">
+  Prefer explicit code over clever code. Clarity is more valuable than brevity.
+</Card>
+
+<Card title="Handle Errors" icon="triangle-exclamation">
+  Always handle potential errors and edge cases. Never silently fail.
+</Card>
+
+<Card title="Write Tests" icon="vial">
+  Test critical functionality. Aim for meaningful coverage, not just high percentages.
+</Card>
+
+<Card title="Document Complexity" icon="book">
+  Add comments for complex logic or non-obvious decisions. Let the code explain what, comments explain why.
+</Card>
+
+## Performance
+
+- Avoid unnecessary re-renders in React
+- Use React.memo for expensive components
+- Leverage Next.js caching strategies
+- Optimize database queries
+- Use pagination for large datasets
+- Implement proper loading states
+
+## Security
+
+<Warning>
+**Never commit secrets** - Use environment variables for sensitive data.
+</Warning>
+
+- Validate all user input
+- Sanitize data before database queries
+- Use parameterized queries
+- Implement proper authentication checks
+- Follow OWASP security guidelines
+- Keep dependencies updated
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Getting Started" icon="rocket" href="/development/getting-started">
+    Set up your local development environment
+  </Card>
+  <Card title="Project Structure" icon="folder-tree" href="/development/project-structure">
+    Understand the monorepo architecture
+  </Card>
+</CardGroup>

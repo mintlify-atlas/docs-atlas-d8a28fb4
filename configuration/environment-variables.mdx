@@ -1,0 +1,449 @@
+---
+title: Environment Variables
+description: Complete reference for configuring Budget Bee with environment variables
+---
+
+# Environment Variables
+
+Budget Bee uses environment variables for configuration. This guide covers all available variables and their purposes.
+
+## Getting Started
+
+Copy the example environment file:
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` with your configuration.
+
+<Warning>
+  Never commit `.env` to version control. It contains sensitive secrets and credentials.
+</Warning>
+
+## Application URLs
+
+Core application URL configuration:
+
+<ParamField path="NEXT_PUBLIC_SITE_URL" type="string" required default="http://localhost:3001">
+  URL for the marketing/landing site
+  
+  **Example values:**
+  - Development: `http://localhost:3001`
+  - Production: `https://budget-bee.site`
+</ParamField>
+
+<ParamField path="NEXT_PUBLIC_APP_URL" type="string" required default="http://localhost:3000">
+  URL for the main application
+  
+  **Example values:**
+  - Development: `http://localhost:3000`
+  - Production: `https://app.budget-bee.site`
+  
+  <Note>
+    This is used for authentication callbacks and email links.
+  </Note>
+</ParamField>
+
+<ParamField path="NEXT_PUBLIC_CURRENCY_API_URL" type="string" default="http://localhost:8787">
+  URL for the currency conversion API service
+  
+  **Example values:**
+  - Development: `http://localhost:8787`
+  - Production: `https://currency-api.budget-bee.site`
+</ParamField>
+
+<ParamField path="NEXT_PUBLIC_PG_REST_URL" type="string" required default="http://localhost:5101">
+  URL for the PostgREST API endpoint
+  
+  **Example values:**
+  - Development: `http://localhost:5101`
+  - Production: `https://api.budget-bee.site`
+</ParamField>
+
+<ParamField path="NEXT_PUBLIC_CLOUDINARY_URL" type="string">
+  Cloudinary URL for image uploads (optional)
+  
+  Format: `cloudinary://api_key:api_secret@cloud_name`
+</ParamField>
+
+## Authentication
+
+Better Auth configuration for authentication:
+
+<ParamField path="BETTER_AUTH_SECRET" type="string" required>
+  Secret key for Better Auth encryption and signing
+  
+  **Generation:**
+  ```bash
+  openssl rand -base64 32
+  ```
+  
+  <Warning>
+    Must be kept secret. Changing this will invalidate all existing sessions.
+  </Warning>
+</ParamField>
+
+### OAuth Providers
+
+<ParamField path="GOOGLE_CLIENT_ID" type="string">
+  Google OAuth client ID for Google Sign-In
+  
+  **How to get:**
+  1. Go to [Google Cloud Console](https://console.cloud.google.com)
+  2. Create or select a project
+  3. Enable Google+ API
+  4. Create OAuth 2.0 credentials
+  5. Add authorized redirect URIs:
+     - `http://localhost:3000/api/auth/callback/google` (development)
+     - `https://your-domain.com/api/auth/callback/google` (production)
+</ParamField>
+
+<ParamField path="GOOGLE_CLIENT_SECRET" type="string">
+  Google OAuth client secret (paired with client ID)
+</ParamField>
+
+<ParamField path="GOOGLE_ANALYTICS_ID" type="string">
+  Google Analytics measurement ID for tracking (optional)
+  
+  Format: `G-XXXXXXXXXX`
+</ParamField>
+
+## Email Configuration
+
+Resend email service configuration:
+
+<ParamField path="RESEND_API_KEY" type="string" required>
+  Resend API key for sending emails
+  
+  **How to get:**
+  1. Sign up at [resend.com](https://resend.com)
+  2. Create an API key in the dashboard
+  3. Copy the key (starts with `re_`)
+  
+  <Note>
+    Resend is used for verification emails, password resets, and invitations.
+  </Note>
+</ParamField>
+
+<ParamField path="SMTP_SENDER_NAME" type="string" required default="Budget Bee">
+  Display name for email sender
+  
+  This appears as the "From" name in emails.
+</ParamField>
+
+<ParamField path="SMTP_MAIL" type="string" required>
+  Email address for sending emails
+  
+  **Requirements:**
+  - Must be verified in Resend
+  - Should be a no-reply or support email
+  
+  **Example:** `noreply@budget-bee.site`
+</ParamField>
+
+## Database Configuration
+
+PostgreSQL database connection settings:
+
+<ParamField path="POSTGRES_DATABASE" type="string" required default="budgetbee">
+  Name of the PostgreSQL database
+</ParamField>
+
+<ParamField path="POSTGRES_USER" type="string" required default="root">
+  Main PostgreSQL user for application connections
+  
+  <Tip>
+    Use a dedicated user rather than the postgres superuser.
+  </Tip>
+</ParamField>
+
+<ParamField path="POSTGRES_HOST" type="string" required default="localhost">
+  PostgreSQL server hostname or IP address
+  
+  **Example values:**
+  - Development: `localhost`
+  - Docker: `postgres` (service name)
+  - Production: `your-db-host.com`
+</ParamField>
+
+<ParamField path="POSTGRES_PORT" type="number" required default={5100}>
+  PostgreSQL server port
+  
+  Default PostgreSQL port is 5432, but can be customized.
+</ParamField>
+
+<ParamField path="POSTGRES_PASSWORD" type="string" required>
+  Password for the main PostgreSQL user
+  
+  <Warning>
+    Use a strong, unique password. Never use default passwords in production.
+  </Warning>
+</ParamField>
+
+### Special Database Users
+
+Budget Bee uses separate database users for different operations:
+
+<ParamField path="POSTGRES_AUTH_ADMIN_USER" type="string" required default="auth_admin">
+  Database user for Better Auth operations
+  
+  This user has permissions to manage:
+  - users table
+  - sessions table
+  - accounts table
+  - verifications table
+  - organizations, members, invitations
+</ParamField>
+
+<ParamField path="POSTGRES_AUTH_ADMIN_PASSWORD" type="string" required>
+  Password for the auth_admin user
+</ParamField>
+
+<ParamField path="POSTGRES_SUBSCRIPTION_ADMIN_USER" type="string" required default="subscription_admin">
+  Database user for subscription management
+  
+  This user has permissions to:
+  - Read users table
+  - Manage app_subscriptions table
+</ParamField>
+
+<ParamField path="POSTGRES_SUBSCRIPTION_ADMIN_PASSWORD" type="string" required>
+  Password for the subscription_admin user
+</ParamField>
+
+### PostgREST Configuration
+
+<ParamField path="PGRST_JWT_SECRET" type="string" required>
+  JWT secret for PostgREST API authentication
+  
+  **Generation:**
+  ```bash
+  openssl rand -base64 32
+  ```
+  
+  <Note>
+    This should be different from BETTER_AUTH_SECRET.
+  </Note>
+</ParamField>
+
+## Billing & Subscriptions
+
+Polar integration for subscription billing:
+
+<ParamField path="POLAR_ACCESS_TOKEN" type="string">
+  Polar API access token for subscription management
+  
+  **How to get:**
+  1. Sign up at [polar.sh](https://polar.sh)
+  2. Create an organization
+  3. Generate an API token in settings
+</ParamField>
+
+<ParamField path="POLAR_WEBHOOK_SECRET" type="string">
+  Secret for verifying Polar webhook signatures
+  
+  Found in Polar dashboard under Webhooks settings.
+</ParamField>
+
+### Polar Product IDs
+
+<ParamField path="POLAR_PRODUCT_PRO" type="string">
+  Product ID for Pro monthly subscription
+  
+  Create products in Polar dashboard and copy their IDs.
+</ParamField>
+
+<ParamField path="POLAR_PRODUCT_PRO_YEARLY" type="string">
+  Product ID for Pro yearly subscription
+</ParamField>
+
+<ParamField path="POLAR_PRODUCT_TEAMS" type="string">
+  Product ID for Teams monthly subscription
+</ParamField>
+
+<ParamField path="POLAR_PRODUCT_TEAMS_YEARLY" type="string">
+  Product ID for Teams yearly subscription
+</ParamField>
+
+## Development & Testing
+
+<ParamField path="DEV_ONLY_TEST_USER_ID" type="string">
+  User ID for testing in development
+  
+  <Warning>
+    Only use in development environments. Never set in production.
+  </Warning>
+</ParamField>
+
+## Complete Example
+
+```bash
+# Application URLs
+NEXT_PUBLIC_SITE_URL=https://budget-bee.site
+NEXT_PUBLIC_APP_URL=https://app.budget-bee.site
+NEXT_PUBLIC_CURRENCY_API_URL=https://currency-api.budget-bee.site
+NEXT_PUBLIC_PG_REST_URL=https://api.budget-bee.site
+NEXT_PUBLIC_CLOUDINARY_URL=cloudinary://key:secret@cloud_name
+
+# Better Auth
+BETTER_AUTH_SECRET=your-generated-secret-key-here
+
+# Email (Resend)
+RESEND_API_KEY=re_123456789abcdefghijklmnop
+SMTP_SENDER_NAME=Budget Bee
+SMTP_MAIL=noreply@budget-bee.site
+
+# Database
+POSTGRES_DATABASE=budgetbee
+POSTGRES_USER=budgetbee_user
+POSTGRES_HOST=db.example.com
+POSTGRES_PORT=5432
+POSTGRES_PASSWORD=strong-database-password
+
+POSTGRES_AUTH_ADMIN_USER=auth_admin
+POSTGRES_AUTH_ADMIN_PASSWORD=auth-admin-password
+POSTGRES_SUBSCRIPTION_ADMIN_USER=subscription_admin
+POSTGRES_SUBSCRIPTION_ADMIN_PASSWORD=subscription-admin-password
+
+PGRST_JWT_SECRET=another-generated-secret-key
+
+# Polar Billing
+POLAR_ACCESS_TOKEN=polar_secret_key_abc123
+POLAR_WEBHOOK_SECRET=whsec_abc123xyz789
+POLAR_PRODUCT_PRO=prod_abc123
+POLAR_PRODUCT_PRO_YEARLY=prod_def456
+POLAR_PRODUCT_TEAMS=prod_ghi789
+POLAR_PRODUCT_TEAMS_YEARLY=prod_jkl012
+
+# Google OAuth
+GOOGLE_CLIENT_ID=123456789-abc.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-abc123xyz789
+GOOGLE_ANALYTICS_ID=G-ABCDEFGHIJ
+```
+
+## Environment-Specific Configuration
+
+### Development
+
+```bash
+# Use localhost for all services
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_SITE_URL=http://localhost:3001
+NEXT_PUBLIC_PG_REST_URL=http://localhost:5101
+NEXT_PUBLIC_CURRENCY_API_URL=http://localhost:8787
+
+# Local database
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+```
+
+### Production
+
+```bash
+# Use production domains
+NEXT_PUBLIC_APP_URL=https://app.budget-bee.site
+NEXT_PUBLIC_SITE_URL=https://budget-bee.site
+NEXT_PUBLIC_PG_REST_URL=https://api.budget-bee.site
+NEXT_PUBLIC_CURRENCY_API_URL=https://currency-api.budget-bee.site
+
+# Production database with SSL
+POSTGRES_HOST=prod-db.example.com
+POSTGRES_PORT=5432
+```
+
+### Docker Compose
+
+```bash
+# Use service names for inter-container communication
+POSTGRES_HOST=postgres
+POSTGRES_PORT=5432
+
+# External URLs for browser access
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_PG_REST_URL=http://localhost:5101
+```
+
+## Security Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Strong Secrets" icon="key">
+    Generate secrets with `openssl rand -base64 32` or similar tools.
+  </Card>
+  
+  <Card title="Different Per Environment" icon="layer-group">
+    Use different secrets for development, staging, and production.
+  </Card>
+  
+  <Card title="Never Commit" icon="ban">
+    Add `.env` to `.gitignore`. Never commit secrets to version control.
+  </Card>
+  
+  <Card title="Rotate Regularly" icon="rotate">
+    Rotate secrets periodically, especially after team member changes.
+  </Card>
+</CardGroup>
+
+## Validation
+
+Budget Bee validates environment variables on startup. Missing required variables will cause startup failures:
+
+```typescript
+// Example validation
+if (!process.env.BETTER_AUTH_SECRET) {
+  throw new Error('BETTER_AUTH_SECRET is required');
+}
+
+if (!process.env.NEXT_PUBLIC_APP_URL) {
+  throw new Error('NEXT_PUBLIC_APP_URL is required');
+}
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Application won't start">
+    Check:
+    - All required environment variables are set
+    - No typos in variable names
+    - Values are properly quoted if they contain special characters
+    - .env file is in the correct directory
+  </Accordion>
+  
+  <Accordion title="Authentication not working">
+    Verify:
+    - BETTER_AUTH_SECRET is set and not empty
+    - NEXT_PUBLIC_APP_URL is correct and accessible
+    - OAuth client IDs and secrets are correct
+    - Callback URLs are properly configured in OAuth provider
+  </Accordion>
+  
+  <Accordion title="Database connection failed">
+    Ensure:
+    - Database server is running
+    - POSTGRES_HOST and POSTGRES_PORT are correct
+    - POSTGRES_USER has proper permissions
+    - POSTGRES_PASSWORD is correct
+    - Database POSTGRES_DATABASE exists
+  </Accordion>
+  
+  <Accordion title="Emails not sending">
+    Check:
+    - RESEND_API_KEY is valid and not expired
+    - SMTP_MAIL is verified in Resend dashboard
+    - API key has send permissions
+    - Check Resend dashboard for delivery logs
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Database Setup" icon="database" href="/configuration/database-setup">
+    Configure PostgreSQL with users and roles.
+  </Card>
+  
+  <Card title="Authentication Setup" icon="key" href="/configuration/authentication">
+    Configure Better Auth and OAuth providers.
+  </Card>
+</CardGroup>

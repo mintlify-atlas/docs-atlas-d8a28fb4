@@ -1,0 +1,612 @@
+---
+title: 'PostgreSQL Configuration'
+description: 'Configure and optimize PostgreSQL for Budget Bee'
+---
+
+## Overview
+
+Budget Bee uses PostgreSQL 17.5 as its primary database, leveraging advanced features like row-level security, JSONB columns, and custom functions for secure multi-tenant data isolation.
+
+## Docker Configuration
+
+The PostgreSQL service is defined in `infra/bu-postgres.yml`:
+
+```yaml
+services:
+  bu-postgres:
+    image: postgres:17.5-alpine3.22
+    container_name: bu-postgres
+    restart: unless-stopped
+    networks:
+      - bu-net
+    volumes:
+      - bu-postgres-data:/var/lib/postgresql/data
+    env_file:
+      - path: .env
+        required: true
+    ports:
+      - 5100:5432
+    environment:
+      POSTGRES_DB: budgetbee
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+```
+
+<Note>
+PostgreSQL runs on port **5100** externally (mapped to 5432 internally) to avoid conflicts with local installations.
+</Note>
+
+## Database Roles
+
+Budget Bee uses multiple PostgreSQL roles with specific permissions:
+
+### Root User
+
+The primary database owner:
+
+```bash
+POSTGRES_USER=root
+POSTGRES_PASSWORD=<strong_password>
+```
+
+Permissions:
+- Full database ownership
+- Creates schemas and extensions
+- Runs migrations
+
+### Auth Admin
+
+Used by Better Auth for user management:
+
+```sql
+CREATE ROLE auth_admin WITH LOGIN PASSWORD '<password>' BYPASSRLS;
+
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO auth_admin;
+REVOKE TRIGGER, TRUNCATE ON ALL TABLES IN SCHEMA public FROM auth_admin;
+```
+
+<Warning>
+`BYPASSRLS` allows this role to bypass row-level security. Restrict network access to this user.
+</Warning>
+
+Permissions:
+- Full CRUD on auth tables (users, sessions, accounts, etc.)
+- Bypasses RLS policies
+- Cannot execute triggers or truncate tables
+
+### Subscription Admin
+
+Manages application billing:
+
+```sql
+CREATE ROLE subscription_admin WITH LOGIN PASSWORD '<password>' BYPASSRLS;
+
+GRANT SELECT ON users TO subscription_admin;
+GRANT ALL PRIVILEGES ON app_subscriptions TO subscription_admin;
+```
+
+Permissions:
+- Read access to users table
+- Full CRUD on app_subscriptions
+- Bypasses RLS policies
+
+### Application Roles
+
+These roles are used by PostgREST:
+
+```sql
+CREATE ROLE anon NOLOGIN;
+CREATE ROLE authenticated NOLOGIN;
+
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO authenticated;
+REVOKE TRIGGER, TRUNCATE ON ALL TABLES IN SCHEMA public FROM authenticated;
+```
+
+| Role | Usage | Permissions |
+|------|-------|-------------|
+| `anon` | Unauthenticated API requests | No table access |
+| `authenticated` | Logged-in API requests | CRUD via RLS policies |
+
+## Database Schema
+
+### Authentication Tables
+
+Managed by Better Auth:
+
+```sql
+-- Users
+create table users (
+  id text primary key,
+  name text not null,
+  email text not null unique,
+  email_verified boolean not null,
+  image text,
+  created_at timestamptz default CURRENT_TIMESTAMP not null,
+  updated_at timestamptz default CURRENT_TIMESTAMP not null
+);
+
+-- Sessions
+create table sessions (
+  id text primary key,
+  expires_at timestamptz not null,
+  token text not null unique,
+  user_id text not null references users(id) on delete cascade,
+  active_organization_id text,
+  ip_address text,
+  user_agent text
+);
+
+-- Organizations (Multi-tenancy)
+create table organizations (
+  id text primary key,
+  name text not null,
+  slug text not null unique,
+  logo text,
+  created_at timestamptz not null,
+  metadata text
+);
+
+-- Organization Members
+create table members (
+  id text primary key,
+  organization_id text not null references organizations(id) on delete cascade,
+  user_id text not null references users(id) on delete cascade,
+  role text not null,  -- owner, admin, editor, viewer
+  created_at timestamptz not null
+);
+```
+
+### Business Tables
+
+```sql
+-- Categories
+create table categories (
+  id uuid primary key default gen_random_uuid(),
+  name varchar(255) not null,
+  description varchar(1000),
+  color builtin_colors default get_random_builtin_color(),
+  user_id text references users(id),
+  organization_id text references organizations(id)
+);
+
+-- Transactions
+create table transactions (
+  id uuid primary key default gen_random_uuid(),
+  amount numeric(10, 2) default 0,
+  currency varchar(3) default 'usd',
+  user_id text references users(id) on delete cascade,
+  organization_id text references organizations(id) on delete cascade,
+  category_id uuid references categories(id) on delete set null,
+  external_id varchar(255),
+  reference_no varchar(255),
+  name varchar(255),
+  description varchar(1000),
+  status varchar(8) default 'paid',
+  source varchar(255) default 'manual',
+  metadata jsonb,
+  transaction_date timestamp default current_timestamp,
+  created_at timestamp default current_timestamp,
+  updated_at timestamp default current_timestamp
+);
+
+-- Subscriptions
+create table subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  amount numeric(10, 2),
+  title varchar(255) not null,
+  description varchar(1000),
+  logo_url varchar(255),
+  period subscription_period,
+  interval_in_days integer,
+  category_id uuid references categories(id) on delete set null,
+  user_id text references users(id) on delete cascade,
+  organization_id text references organizations(id) on delete cascade
+);
+```
+
+### Custom Types
+
+```sql
+-- Subscription periods
+create type subscription_period as enum(
+  'monthly', 'yearly', 'quarterly', 'semi-annually', 'weekly', 'daily'
+);
+
+-- Subscription status
+create type subscription_status as enum('active', 'paused', 'canceled');
+
+-- Category colors
+create type builtin_colors as enum(
+  'gray', 'brown', 'orange', 'yellow', 'green',
+  'blue', 'purple', 'pink', 'red'
+);
+
+-- Feature flag scopes
+CREATE TYPE feature_flag_scope AS ENUM('global', 'account', 'organization');
+```
+
+## Row-Level Security (RLS)
+
+Budget Bee uses RLS to enforce data isolation:
+
+### JWT Helper Functions
+
+```sql
+-- Extract user ID from JWT
+CREATE OR REPLACE FUNCTION uid() RETURNS text AS $$
+BEGIN
+  RETURN COALESCE(
+    current_setting('request.jwt.claims', true)::jsonb ->> 'sub',
+    current_setting('request.jwt.claims', true)::jsonb ->> 'user_id'
+  );
+END
+$$ LANGUAGE plpgsql STABLE;
+
+-- Extract organization ID from JWT
+CREATE OR REPLACE FUNCTION org_id() RETURNS text AS $$
+BEGIN
+  RETURN current_setting('request.jwt.claims', true)::jsonb -> 'claims' ->> 'organization_id';
+END
+$$ LANGUAGE plpgsql STABLE;
+
+-- Extract organization role from JWT
+CREATE OR REPLACE FUNCTION org_role() RETURNS text AS $$
+BEGIN
+  RETURN current_setting('request.jwt.claims', true)::jsonb -> 'claims' ->> 'organization_role';
+END
+$$ LANGUAGE plpgsql STABLE;
+```
+
+### Access Control Function
+
+```sql
+CREATE OR REPLACE FUNCTION check_ac_current(p_resource TEXT, p_action TEXT)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN check_ac(org_role(), p_resource, p_action);
+END
+$$ LANGUAGE plpgsql STABLE;
+
+-- Permission matrix:
+-- owner/admin/editor: all actions (list, get, create, update, delete)
+-- viewer: read-only (list, get)
+```
+
+### Transaction Policies
+
+```sql
+alter table transactions enable row level security;
+
+-- SELECT: Users see their own data or org data (if permitted)
+CREATE POLICY limit_transactions_select ON transactions FOR SELECT
+  TO authenticated USING (
+    (organization_id IS NULL AND user_id = uid())
+    OR (organization_id = org_id() AND check_ac_current('transaction', 'list'))
+  );
+
+-- INSERT: Users can create for themselves or their org (if permitted)
+CREATE POLICY limit_transactions_insert ON transactions FOR INSERT
+  TO authenticated WITH CHECK (
+    (organization_id IS NULL AND user_id = uid())
+    OR (organization_id = org_id() AND check_ac_current('transaction', 'create'))
+  );
+
+-- UPDATE: Same as INSERT
+CREATE POLICY limit_transactions_update ON transactions FOR UPDATE
+  TO authenticated USING (
+    (organization_id IS NULL AND user_id = uid())
+    OR (organization_id = org_id() AND check_ac_current('transaction', 'update'))
+  );
+
+-- DELETE: Requires delete permission
+CREATE POLICY limit_transactions_delete ON transactions FOR DELETE
+  TO authenticated USING (
+    (organization_id IS NULL AND user_id = uid())
+    OR (organization_id = org_id() AND check_ac_current('transaction', 'delete'))
+  );
+```
+
+<Tip>
+Categories, tags, and other tables use similar RLS patterns.
+</Tip>
+
+## Database Functions
+
+Budget Bee includes several stored procedures for data aggregation:
+
+### Filtered Transactions
+
+```sql
+CREATE FUNCTION get_filtered_transactions(filters jsonb)
+RETURNS SETOF transactions AS $$
+-- Dynamically filters transactions based on:
+-- - amount (eq, gt, gte, lt, lte)
+-- - category (is, is not, is empty)
+-- - status (is, is not, is empty)
+-- - dates (from, to, between)
+$$;
+```
+
+### Transaction Aggregates
+
+```sql
+CREATE FUNCTION get_transaction_aggregate(
+  p_user_id TEXT,
+  p_organization_id TEXT,
+  p_filters JSONB,
+  p_metric TEXT,           -- category_id, status, currency
+  p_interval TEXT,         -- day, week, month
+  p_aggregate_fn TEXT,     -- sum, avg, count, min, max
+  p_transaction_type TEXT  -- credit, debit, balance
+)
+RETURNS TABLE (period TIMESTAMP, metric TEXT, aggregate NUMERIC);
+```
+
+### Category Deletion
+
+```sql
+CREATE FUNCTION delete_category(
+  p_category_id UUID,
+  p_cascade_delete BOOLEAN DEFAULT FALSE
+)
+RETURNS VOID AS $$
+-- Optionally delete all transactions in category
+$$;
+```
+
+## Triggers
+
+### Auto-update Timestamps
+
+```sql
+CREATE OR REPLACE FUNCTION set_updated_at_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON transactions
+FOR EACH ROW EXECUTE FUNCTION set_updated_at_timestamp();
+```
+
+### Default Categories
+
+```sql
+CREATE OR REPLACE FUNCTION create_default_categories()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO categories (name, user_id)
+  VALUES ('Food', NEW.id), ('Travel', NEW.id), ('Sales', NEW.id);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER on_user_insert_create_default_categories
+AFTER INSERT ON users FOR EACH ROW
+EXECUTE FUNCTION create_default_categories();
+```
+
+## Performance Optimization
+
+### Indexes
+
+Add indexes for frequently queried columns:
+
+```sql
+-- Transaction queries
+CREATE INDEX idx_transactions_user_id ON transactions(user_id);
+CREATE INDEX idx_transactions_org_id ON transactions(organization_id);
+CREATE INDEX idx_transactions_date ON transactions(transaction_date);
+CREATE INDEX idx_transactions_category ON transactions(category_id);
+
+-- Feature flags
+CREATE INDEX idx_feature_flags_key_scope_scope_id ON feature_flags(key, scope, scope_id);
+```
+
+### Connection Pooling
+
+Configure connection pooling in `bu-postgrest.yml`:
+
+```yaml
+environment:
+  PGRST_DB_POOL: 10  # Max concurrent connections
+```
+
+For high-traffic deployments, use PgBouncer:
+
+```yaml
+services:
+  pgbouncer:
+    image: pgbouncer/pgbouncer
+    environment:
+      DATABASES_HOST: bu-postgres
+      DATABASES_PORT: 5432
+      DATABASES_USER: root
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 100
+      DEFAULT_POOL_SIZE: 20
+```
+
+### Query Optimization
+
+Use `EXPLAIN ANALYZE` to optimize slow queries:
+
+```sql
+EXPLAIN ANALYZE
+SELECT * FROM get_filtered_transactions('[{"field":"amount","operation":"gt","value":100}]'::jsonb);
+```
+
+## Backups
+
+### Manual Backup
+
+```bash
+# Backup entire database
+docker exec bu-postgres pg_dump -U root budgetbee > backup.sql
+
+# Backup with compression
+docker exec bu-postgres pg_dump -U root -Fc budgetbee > backup.dump
+```
+
+### Automated Backups
+
+Create a cron job:
+
+```bash
+#!/bin/bash
+# backup-budgetbee.sh
+BACKUP_DIR="/backups/budgetbee"
+DATE=$(date +%Y%m%d_%H%M%S)
+
+docker exec bu-postgres pg_dump -U root -Fc budgetbee > "$BACKUP_DIR/budgetbee_$DATE.dump"
+
+# Keep only last 30 days
+find "$BACKUP_DIR" -name "budgetbee_*.dump" -mtime +30 -delete
+```
+
+Schedule daily at 2 AM:
+
+```bash
+crontab -e
+0 2 * * * /path/to/backup-budgetbee.sh
+```
+
+### Restore from Backup
+
+```bash
+# SQL format
+docker exec -i bu-postgres psql -U root budgetbee < backup.sql
+
+# Custom format
+docker exec -i bu-postgres pg_restore -U root -d budgetbee backup.dump
+```
+
+## Security Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Strong Passwords" icon="lock">
+    Use 32+ character random passwords for all database users
+  </Card>
+  <Card title="Network Isolation" icon="network-wired">
+    Run PostgreSQL in a private Docker network
+  </Card>
+  <Card title="SSL/TLS" icon="shield-halved">
+    Enable SSL for database connections in production
+  </Card>
+  <Card title="Regular Updates" icon="clock-rotate-left">
+    Keep PostgreSQL updated to latest stable version
+  </Card>
+</CardGroup>
+
+### Enable SSL
+
+Generate SSL certificates:
+
+```bash
+openssl req -new -x509 -days 365 -nodes -text -out server.crt -keyout server.key
+chmod 600 server.key
+```
+
+Mount certificates in Docker:
+
+```yaml
+volumes:
+  - ./certs/server.crt:/var/lib/postgresql/server.crt:ro
+  - ./certs/server.key:/var/lib/postgresql/server.key:ro
+environment:
+  POSTGRES_SSL_CERT_FILE: /var/lib/postgresql/server.crt
+  POSTGRES_SSL_KEY_FILE: /var/lib/postgresql/server.key
+```
+
+## Monitoring
+
+### Check Connection Count
+
+```sql
+SELECT count(*) FROM pg_stat_activity;
+```
+
+### View Active Queries
+
+```sql
+SELECT pid, usename, state, query, query_start
+FROM pg_stat_activity
+WHERE state != 'idle';
+```
+
+### Database Size
+
+```sql
+SELECT pg_size_pretty(pg_database_size('budgetbee'));
+```
+
+### Table Sizes
+
+```sql
+SELECT
+  schemaname,
+  tablename,
+  pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
+FROM pg_tables
+WHERE schemaname = 'public'
+ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
+```
+
+## Troubleshooting
+
+### Connection Errors
+
+```bash
+# Check if PostgreSQL is running
+docker ps | grep bu-postgres
+
+# Check PostgreSQL logs
+docker logs bu-postgres
+
+# Test connection
+docker exec bu-postgres pg_isready -U root
+```
+
+### RLS Policy Issues
+
+```sql
+-- Disable RLS temporarily for debugging (NOT in production)
+ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;
+
+-- Check active policies
+SELECT * FROM pg_policies WHERE tablename = 'transactions';
+
+-- Test JWT functions
+SELECT uid(), org_id(), org_role();
+```
+
+### Slow Queries
+
+```sql
+-- Enable query logging
+ALTER SYSTEM SET log_min_duration_statement = 1000;  -- Log queries > 1s
+SELECT pg_reload_conf();
+
+-- View slow queries
+SELECT query, calls, total_time, mean_time
+FROM pg_stat_statements
+ORDER BY mean_time DESC
+LIMIT 10;
+```
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="PostgREST Setup" icon="server" href="/infrastructure/postgrest">
+    Configure the REST API layer
+  </Card>
+  <Card title="Redis Setup" icon="memory" href="/infrastructure/redis">
+    Add caching for performance
+  </Card>
+  <Card title="Migrations" icon="database" href="/deployment/database-migrations">
+    Learn about schema evolution
+  </Card>
+</CardGroup>

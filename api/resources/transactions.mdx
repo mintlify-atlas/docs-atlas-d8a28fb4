@@ -1,0 +1,542 @@
+---
+title: 'Transactions'
+description: 'Create, read, update, and delete financial transactions'
+icon: 'receipt'
+---
+
+## Overview
+
+Transactions represent financial activities in Budget Bee. They support categories, tags, line items, and can be filtered by various criteria.
+
+### Base URL
+
+```
+{NEXT_PUBLIC_PG_REST_URL}/transactions
+```
+
+### Authorization
+
+All transaction endpoints require authentication via JWT token:
+
+```bash
+Authorization: Bearer {JWT_TOKEN}
+```
+
+---
+
+## List Transactions
+
+Retrieve a list of transactions. Results are automatically filtered based on user/organization context.
+
+```bash
+GET /transactions
+```
+
+### Query Parameters
+
+<ParamField query="select" type="string">
+  Columns to return. Default: `*` (all columns)
+</ParamField>
+
+<ParamField query="order" type="string">
+  Sort order. Example: `transaction_date.desc` or `amount.asc`
+</ParamField>
+
+<ParamField query="limit" type="integer">
+  Maximum number of results to return
+</ParamField>
+
+<ParamField query="offset" type="integer">
+  Number of results to skip (for pagination)
+</ParamField>
+
+<ParamField query="category_id" type="string">
+  Filter by category ID. Use `eq.{uuid}` format
+</ParamField>
+
+<ParamField query="status" type="string">
+  Filter by status. Values: `paid`, `pending`, `failed`
+</ParamField>
+
+<ParamField query="transaction_date" type="string">
+  Filter by date. Use operators like `gte.2024-01-01` or `lte.2024-12-31`
+</ParamField>
+
+<ParamField query="amount" type="string">
+  Filter by amount. Use operators like `gt.100` or `lt.1000`
+</ParamField>
+
+### Request Example
+
+```bash
+curl -X GET "{NEXT_PUBLIC_PG_REST_URL}/transactions?order=transaction_date.desc&limit=50" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Content-Type: application/json"
+```
+
+### Response
+
+<ResponseField name="id" type="uuid">
+  Unique transaction identifier
+</ResponseField>
+
+<ResponseField name="amount" type="numeric">
+  Transaction amount (decimal with 2 places)
+</ResponseField>
+
+<ResponseField name="currency" type="string">
+  Currency code (default: "usd")
+</ResponseField>
+
+<ResponseField name="user_id" type="string">
+  Owner user ID
+</ResponseField>
+
+<ResponseField name="organization_id" type="string">
+  Organization ID (null for personal transactions)
+</ResponseField>
+
+<ResponseField name="external_id" type="string">
+  External reference ID (for imports)
+</ResponseField>
+
+<ResponseField name="category_id" type="uuid">
+  Category reference
+</ResponseField>
+
+<ResponseField name="reference_no" type="string">
+  Reference or invoice number
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Transaction name/title
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Detailed description
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Transaction status: `paid`, `pending`, `failed`
+</ResponseField>
+
+<ResponseField name="source" type="string">
+  Source of transaction (default: "manual")
+</ResponseField>
+
+<ResponseField name="metadata" type="jsonb">
+  Additional metadata as JSON
+</ResponseField>
+
+<ResponseField name="transaction_date" type="timestamp">
+  When the transaction occurred
+</ResponseField>
+
+<ResponseField name="created_at" type="timestamp">
+  When the record was created
+</ResponseField>
+
+<ResponseField name="updated_at" type="timestamp">
+  Last update timestamp
+</ResponseField>
+
+### Response Example
+
+```json
+[
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "amount": 125.50,
+    "currency": "usd",
+    "user_id": "usr_abc123",
+    "organization_id": "org_456",
+    "external_id": null,
+    "category_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    "reference_no": "INV-2024-001",
+    "name": "Office Supplies",
+    "description": "Pens, notebooks, and printer paper",
+    "status": "paid",
+    "source": "manual",
+    "metadata": {
+      "vendor": "Office Depot",
+      "payment_method": "credit_card"
+    },
+    "transaction_date": "2024-01-15T14:30:00Z",
+    "created_at": "2024-01-15T14:32:00Z",
+    "updated_at": "2024-01-15T14:32:00Z"
+  }
+]
+```
+
+---
+
+## Get Transaction
+
+Retrieve a single transaction by ID.
+
+```bash
+GET /transactions?id=eq.{transaction_id}
+```
+
+### Request Example
+
+```bash
+curl -X GET "{NEXT_PUBLIC_PG_REST_URL}/transactions?id=eq.550e8400-e29b-41d4-a716-446655440000" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Accept: application/vnd.pgrst.object+json"
+```
+
+<Note>
+  Add `Accept: application/vnd.pgrst.object+json` header to return a single object instead of an array.
+</Note>
+
+### Response Example
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "amount": 125.50,
+  "currency": "usd",
+  "name": "Office Supplies",
+  "category_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+  "transaction_date": "2024-01-15T14:30:00Z"
+}
+```
+
+---
+
+## Create Transaction
+
+Create a new transaction.
+
+```bash
+POST /transactions
+```
+
+### Request Body
+
+<ParamField body="amount" type="numeric" required>
+  Transaction amount
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Transaction name/title
+</ParamField>
+
+<ParamField body="currency" type="string">
+  Currency code (default: "usd")
+</ParamField>
+
+<ParamField body="category_id" type="uuid">
+  Category reference
+</ParamField>
+
+<ParamField body="description" type="string">
+  Detailed description
+</ParamField>
+
+<ParamField body="status" type="string">
+  Status: `paid`, `pending`, or `failed` (default: "paid")
+</ParamField>
+
+<ParamField body="source" type="string">
+  Source identifier (default: "manual")
+</ParamField>
+
+<ParamField body="reference_no" type="string">
+  Reference or invoice number
+</ParamField>
+
+<ParamField body="external_id" type="string">
+  External system reference ID
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Additional metadata as JSON
+</ParamField>
+
+<ParamField body="transaction_date" type="timestamp">
+  Transaction date (default: current timestamp)
+</ParamField>
+
+<ParamField body="user_id" type="string">
+  User ID (auto-populated from JWT)
+</ParamField>
+
+<ParamField body="organization_id" type="string">
+  Organization ID (auto-populated from JWT if in org context)
+</ParamField>
+
+### Request Example
+
+```bash
+curl -X POST "{NEXT_PUBLIC_PG_REST_URL}/transactions" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: return=representation" \
+  -d '{
+    "amount": 89.99,
+    "name": "Monthly Software Subscription",
+    "description": "Adobe Creative Cloud",
+    "category_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    "status": "paid",
+    "source": "manual",
+    "currency": "usd",
+    "transaction_date": "2024-01-15T00:00:00Z",
+    "metadata": {
+      "subscription": true,
+      "recurring": "monthly"
+    }
+  }'
+```
+
+<Note>
+  Include `Prefer: return=representation` header to return the created transaction in the response.
+</Note>
+
+### Response Example
+
+```json
+{
+  "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+  "amount": 89.99,
+  "currency": "usd",
+  "user_id": "usr_abc123",
+  "organization_id": "org_456",
+  "category_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+  "name": "Monthly Software Subscription",
+  "description": "Adobe Creative Cloud",
+  "status": "paid",
+  "source": "manual",
+  "metadata": {
+    "subscription": true,
+    "recurring": "monthly"
+  },
+  "transaction_date": "2024-01-15T00:00:00Z",
+  "created_at": "2024-01-15T10:30:00Z",
+  "updated_at": "2024-01-15T10:30:00Z"
+}
+```
+
+---
+
+## Update Transaction
+
+Update an existing transaction.
+
+```bash
+PATCH /transactions?id=eq.{transaction_id}
+```
+
+### Request Body
+
+Any transaction fields that need to be updated. Only include fields you want to change.
+
+### Request Example
+
+```bash
+curl -X PATCH "{NEXT_PUBLIC_PG_REST_URL}/transactions?id=eq.550e8400-e29b-41d4-a716-446655440000" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: return=representation" \
+  -d '{
+    "amount": 95.00,
+    "status": "paid",
+    "description": "Updated description"
+  }'
+```
+
+### Response Example
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "amount": 95.00,
+  "status": "paid",
+  "description": "Updated description",
+  "updated_at": "2024-01-16T09:15:00Z"
+}
+```
+
+<Warning>
+  The `updated_at` field is automatically updated via database trigger.
+</Warning>
+
+---
+
+## Delete Transaction
+
+Delete a transaction permanently.
+
+```bash
+DELETE /transactions?id=eq.{transaction_id}
+```
+
+### Request Example
+
+```bash
+curl -X DELETE "{NEXT_PUBLIC_PG_REST_URL}/transactions?id=eq.550e8400-e29b-41d4-a716-446655440000" \
+  -H "Authorization: Bearer {JWT_TOKEN}"
+```
+
+### Response
+
+Returns `204 No Content` on successful deletion.
+
+<Warning>
+  Deleting a transaction will cascade delete related records like line items and tag associations.
+</Warning>
+
+---
+
+## Bulk Operations
+
+### Create Multiple Transactions
+
+Create multiple transactions in a single request.
+
+```bash
+POST /transactions
+```
+
+### Request Example
+
+```bash
+curl -X POST "{NEXT_PUBLIC_PG_REST_URL}/transactions" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: return=representation" \
+  -d '[
+    {
+      "amount": 50.00,
+      "name": "Groceries",
+      "category_id": "cat_food_123",
+      "transaction_date": "2024-01-15T00:00:00Z"
+    },
+    {
+      "amount": 30.00,
+      "name": "Gas",
+      "category_id": "cat_travel_456",
+      "transaction_date": "2024-01-15T00:00:00Z"
+    }
+  ]'
+```
+
+### Update Multiple Transactions
+
+Update multiple transactions matching a filter.
+
+```bash
+PATCH /transactions?status=eq.pending
+```
+
+```bash
+curl -X PATCH "{NEXT_PUBLIC_PG_REST_URL}/transactions?status=eq.pending" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "paid"
+  }'
+```
+
+---
+
+## Advanced Filtering
+
+### Filter by Date Range
+
+```bash
+GET /transactions?transaction_date=gte.2024-01-01&transaction_date=lte.2024-01-31
+```
+
+### Filter by Amount Range
+
+```bash
+GET /transactions?amount=gte.100&amount=lte.500
+```
+
+### Filter by Multiple Statuses
+
+```bash
+GET /transactions?status=in.(paid,pending)
+```
+
+### Search by Name
+
+```bash
+GET /transactions?name=ilike.*subscription*
+```
+
+### Complex Filters with OR
+
+```bash
+GET /transactions?or=(status.eq.paid,amount.gt.1000)
+```
+
+---
+
+## Access Control
+
+Transaction access is controlled by organization roles:
+
+<Card title="Owner" icon="crown">
+  Full access: list, get, create, update, delete
+</Card>
+
+<Card title="Admin" icon="user-shield">
+  Full access: list, get, create, update, delete
+</Card>
+
+<Card title="Editor" icon="pen">
+  Full access: list, get, create, update, delete
+</Card>
+
+<Card title="Viewer" icon="eye">
+  Read-only: list, get
+</Card>
+
+### Personal vs Organization Transactions
+
+- **Personal**: `organization_id` is `null`, accessible only by the user
+- **Organization**: `organization_id` is set, accessible by organization members based on their role
+
+---
+
+## Error Responses
+
+### 401 Unauthorized
+
+```json
+{
+  "message": "JWT expired",
+  "code": "PGRST301"
+}
+```
+
+### 403 Forbidden
+
+```json
+{
+  "message": "permission denied for table transactions",
+  "code": "42501"
+}
+```
+
+### 404 Not Found
+
+```json
+[]
+```
+
+<Note>
+  PostgREST returns an empty array instead of 404 when no rows match the query.
+</Note>
+
+### 400 Bad Request
+
+```json
+{
+  "message": "invalid input syntax for type uuid",
+  "code": "22P02"
+}
+```

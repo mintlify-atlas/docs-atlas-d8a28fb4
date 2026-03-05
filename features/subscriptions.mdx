@@ -1,0 +1,369 @@
+---
+title: Subscriptions
+description: Track and manage recurring payments and subscriptions
+---
+
+# Subscription Management
+
+Budget Bee's subscription tracking feature helps you manage all your recurring payments in one place, ensuring you never miss a payment or forget about unused subscriptions.
+
+<Note>
+  The subscriptions feature may require specific subscription plans. Check your account status in settings.
+</Note>
+
+## Overview
+
+The subscriptions feature allows you to:
+- Track recurring payments (monthly, yearly, quarterly, etc.)
+- View upcoming bills in a calendar interface
+- Set up payment reminders
+- Calculate total subscription costs
+- Identify unused or redundant subscriptions
+
+## Accessing Subscriptions
+
+Navigate to the subscriptions page from the sidebar:
+
+```tsx
+// From apps/web/app/(app)/subscriptions/page.tsx
+export default function SubscriptionsPage() {
+  const { modal_subscription_set_open } = useStore();
+  const { isEnabled } = useFeatureFlag("useSubscriptions");
+
+  if (!isEnabled) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center">
+        <h1>Feature Not Available</h1>
+        <p>Subscriptions tracking feature is currently disabled.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mx-auto flex max-w-7xl flex-col gap-6 p-4">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1>Subscriptions</h1>
+          <p>Manage your recurring payments and track upcoming bills.</p>
+        </div>
+        <Button onClick={() => modal_subscription_set_open(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Create Subscription
+        </Button>
+      </div>
+      <SubscriptionCalendar />
+    </div>
+  );
+}
+```
+
+## Creating Subscriptions
+
+<Steps>
+  <Step title="Open Subscription Dialog">
+    Click the **Create Subscription** button on the subscriptions page.
+  </Step>
+  
+  <Step title="Enter Subscription Details">
+    <ParamField path="title" type="string" required>
+      Name of the subscription service (e.g., "Netflix", "Spotify Premium")
+    </ParamField>
+    
+    <ParamField path="amount" type="number" required>
+      Monthly or recurring payment amount
+    </ParamField>
+    
+    <ParamField path="period" type="enum" required>
+      Billing frequency:
+      - `monthly`: Every month
+      - `yearly`: Once per year
+      - `quarterly`: Every 3 months
+      - `semi-annually`: Every 6 months
+      - `weekly`: Every week
+      - `daily`: Every day
+    </ParamField>
+    
+    <ParamField path="interval_in_days" type="number">
+      Custom interval in days (overrides period if set)
+    </ParamField>
+    
+    <ParamField path="category_id" type="uuid">
+      Category for this subscription (helps with budgeting)
+    </ParamField>
+    
+    <ParamField path="description" type="string">
+      Additional notes about the subscription
+    </ParamField>
+    
+    <ParamField path="logo_url" type="string">
+      URL to the service's logo for visual identification
+    </ParamField>
+  </Step>
+  
+  <Step title="Save Subscription">
+    Click **Save** to create the subscription. It will appear in your calendar view.
+  </Step>
+</Steps>
+
+## Subscription Calendar
+
+The subscription calendar provides a visual overview of your recurring payments:
+
+### Calendar Features
+
+<CardGroup cols={2}>
+  <Card title="Monthly View" icon="calendar">
+    See all subscriptions due in the current month at a glance.
+  </Card>
+  
+  <Card title="Payment Dates" icon="calendar-day">
+    Subscriptions appear on their payment dates for easy tracking.
+  </Card>
+  
+  <Card title="Total Cost" icon="dollar-sign">
+    View total monthly and yearly subscription costs.
+  </Card>
+  
+  <Card title="Color Coding" icon="palette">
+    Subscriptions are color-coded by category for quick identification.
+  </Card>
+</CardGroup>
+
+## Subscription Periods
+
+Budget Bee supports various billing periods:
+
+<Accordion title="Billing Frequencies">
+  | Period | Description | Days |
+  |--------|-------------|------|
+  | Daily | Every day | 1 |
+  | Weekly | Every week | 7 |
+  | Monthly | Every month | ~30 |
+  | Quarterly | Every 3 months | ~90 |
+  | Semi-annually | Every 6 months | ~180 |
+  | Yearly | Once per year | ~365 |
+  | Custom | Specify exact days | Variable |
+</Accordion>
+
+### Custom Intervals
+
+For non-standard billing cycles, use the `interval_in_days` field:
+
+```typescript
+// Example: Bi-weekly subscription (every 14 days)
+{
+  title: "Meal Delivery Service",
+  amount: 89.99,
+  interval_in_days: 14,
+  category_id: "uuid-here"
+}
+```
+
+## Managing Subscriptions
+
+### Editing Subscriptions
+
+<Steps>
+  <Step title="Click Subscription">
+    Click on any subscription in the calendar to open its details.
+  </Step>
+  
+  <Step title="Modify Details">
+    Update any field:
+    - Change the amount if prices increase
+    - Update the billing period
+    - Modify the category
+    - Add or update the description
+  </Step>
+  
+  <Step title="Save Changes">
+    Click **Save** to update the subscription.
+  </Step>
+</Steps>
+
+### Pausing Subscriptions
+
+Temporarily pause a subscription without deleting it:
+
+```typescript
+// Subscription status types
+type SubscriptionStatus = 'active' | 'paused' | 'canceled';
+```
+
+1. Open the subscription details
+2. Click **Pause Subscription**
+3. The subscription won't appear in upcoming payments while paused
+4. Click **Resume** to reactivate it
+
+### Canceling Subscriptions
+
+When you cancel a service:
+
+1. Open the subscription
+2. Click **Cancel Subscription**
+3. The subscription is marked as canceled but remains in your history
+4. It no longer appears in upcoming payments
+
+<Tip>
+  Keep canceled subscriptions for historical tracking and tax purposes.
+</Tip>
+
+## Subscription Categories
+
+Organize subscriptions by category:
+
+**Common subscription categories:**
+- Entertainment (Netflix, Spotify, Gaming)
+- Productivity (Office 365, Adobe Creative Cloud)
+- Cloud Services (AWS, Dropbox, Google Drive)
+- Utilities (Internet, Phone, Insurance)
+- Health & Fitness (Gym, Meal Plans)
+- Education (Online courses, Publications)
+
+## Cost Analysis
+
+Budget Bee calculates your subscription costs:
+
+### Monthly Cost
+
+Total of all active subscriptions billed monthly:
+- Pure monthly subscriptions
+- Prorated yearly subscriptions (yearly amount / 12)
+- Prorated quarterly subscriptions (quarterly amount / 3)
+
+### Yearly Cost
+
+Project your total annual subscription spend:
+- Monthly subscriptions × 12
+- Yearly subscriptions
+- Other periods converted to yearly cost
+
+<Note>
+  Cost calculations help you identify opportunities to save money by canceling unused subscriptions.
+</Note>
+
+## Reminders and Notifications
+
+Stay informed about upcoming payments:
+
+- Get reminders before payment dates
+- Notifications for failed payments
+- Alerts for price changes
+- Annual renewal reminders
+
+<Warning>
+  Reminder features require email notifications to be configured. See [Authentication Configuration](/configuration/authentication).
+</Warning>
+
+## Database Schema
+
+Subscriptions are stored with this structure:
+
+```sql
+create type subscription_status as enum('active', 'paused', 'canceled');
+
+create type subscription_period as enum(
+  'monthly',
+  'yearly',
+  'quarterly',
+  'semi-annually',
+  'weekly',
+  'daily'
+);
+
+create table subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  amount numeric(10, 2),
+  title varchar(255) not null,
+  description varchar(1000),
+  logo_url varchar(255),
+  period subscription_period,
+  interval_in_days integer,
+  category_id uuid references categories (id) on delete set null,
+  user_id text references users (id) on delete cascade,
+  organization_id text references organizations (id) on delete cascade
+);
+```
+
+## Integration with Transactions
+
+Link subscriptions to actual transactions:
+
+1. When a subscription payment occurs, create a transaction
+2. Link the transaction to the subscription
+3. Track actual vs. expected payments
+4. Identify missed or late payments
+
+```typescript
+// Create transaction from subscription
+const createTransactionFromSubscription = async (subscription) => {
+  await db.from('transactions').insert({
+    name: subscription.title,
+    amount: -subscription.amount, // Negative for expense
+    category_id: subscription.category_id,
+    status: 'paid',
+    source: 'subscription',
+    metadata: {
+      subscription_id: subscription.id
+    },
+    transaction_date: new Date()
+  });
+};
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Regular Review" icon="calendar-check">
+    Review your subscriptions monthly to identify unused services.
+  </Card>
+  
+  <Card title="Accurate Amounts" icon="dollar-sign">
+    Keep subscription amounts up-to-date when prices change.
+  </Card>
+  
+  <Card title="Use Categories" icon="tags">
+    Categorize subscriptions to understand spending by category.
+  </Card>
+  
+  <Card title="Annual Subscriptions" icon="calendar">
+    Consider switching to annual billing for services you use regularly - it's often cheaper.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Feature not available">
+    The subscriptions feature may be restricted based on your subscription plan. Check:
+    - Your account subscription status
+    - Feature flags configuration
+    - Organization subscription level (for org accounts)
+  </Accordion>
+  
+  <Accordion title="Subscription not appearing in calendar">
+    Verify:
+    - The subscription status is 'active'
+    - The billing period is set correctly
+    - You're viewing the correct month
+    - The subscription belongs to your current organization
+  </Accordion>
+  
+  <Accordion title="Wrong total costs">
+    Ensure:
+    - All subscription amounts are accurate
+    - Billing periods are correct
+    - Paused/canceled subscriptions aren't included
+    - Currency conversions are applied correctly
+  </Accordion>
+</AccordionGroup>
+
+## Feature Flag
+
+The subscriptions feature is controlled by a feature flag:
+
+```typescript
+const { isEnabled } = useFeatureFlag("useSubscriptions");
+```
+
+If the feature is disabled, users will see a message indicating the feature is not available. Contact your administrator or check your subscription plan to enable this feature.

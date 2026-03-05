@@ -1,0 +1,573 @@
+---
+title: 'Redis Configuration'
+description: 'Configure Redis for caching and session management in Budget Bee'
+---
+
+## Overview
+
+Budget Bee uses Redis as an optional caching layer to improve performance for session storage, rate limiting, and frequently accessed data. Redis is implemented via the `ioredis` library.
+
+<Note>
+Redis is **optional** for Budget Bee. The application will work without it, but performance may be reduced for high-traffic deployments.
+</Note>
+
+## Redis Implementation
+
+The Redis client is configured in `packages/core/redis.ts`:
+
+```typescript
+import { Redis } from "ioredis";
+
+const globalForRedis = global as unknown as { redis: Redis };
+
+const getRedisUrl = () => {
+  if (!process.env.REDIS_URL) throw new Error("REDIS_URL is not set");
+  return process.env.REDIS_URL;
+}
+
+export const redis = globalForRedis.redis || new Redis(getRedisUrl());
+
+if (process.env.NODE_ENV !== "production") globalForRedis.redis = redis;
+```
+
+<Tip>
+In development, Redis uses a singleton pattern to avoid creating multiple connections during hot reloads.
+</Tip>
+
+## Environment Configuration
+
+Add Redis configuration to your `.env` file:
+
+```bash
+# Redis Configuration
+REDIS_URL=redis://localhost:6379
+
+# Optional: Redis with authentication
+REDIS_URL=redis://:password@localhost:6379
+
+# Optional: Redis cluster or cloud (e.g., Upstash)
+REDIS_URL=rediss://default:password@redis-cluster.example.com:6380
+```
+
+## Docker Setup
+
+Add Redis to your Docker Compose configuration:
+
+### Create `infra/bu-redis.yml`
+
+```yaml
+services:
+  bu-redis:
+    image: redis:7-alpine
+    container_name: bu-redis
+    restart: unless-stopped
+    networks:
+      - bu-net
+    ports:
+      - 6379:6379
+    volumes:
+      - bu-redis-data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+```
+
+### Update `infra/docker-compose.yml`
+
+```yaml
+include:
+  - bu-postgres.yml
+  - bu-postgrest.yml
+  - bu-adminer.yml
+  - bu-redis.yml  # Add this line
+
+volumes:
+  bu-postgres-data:
+    name: bu-postgres-data
+  bu-redis-data:  # Add this
+    name: bu-redis-data
+
+networks:
+  bu-net:
+    name: bu-net
+    driver: bridge
+```
+
+### Start Redis
+
+```bash
+cd infra && docker compose up -d bu-redis
+```
+
+## Use Cases
+
+### Session Storage
+
+Redis can store user sessions for Better Auth:
+
+```typescript
+import { redis } from "@/lib/redis";
+
+// Store session
+await redis.setex(
+  `session:${sessionToken}`,
+  3600, // 1 hour TTL
+  JSON.stringify(sessionData)
+);
+
+// Retrieve session
+const sessionData = await redis.get(`session:${sessionToken}`);
+
+// Delete session
+await redis.del(`session:${sessionToken}`);
+```
+
+### Rate Limiting
+
+Implement API rate limiting:
+
+```typescript
+import { redis } from "@/lib/redis";
+
+const rateLimit = async (userId: string, limit: number = 100) => {
+  const key = `rate_limit:${userId}`;
+  const current = await redis.incr(key);
+  
+  if (current === 1) {
+    // First request, set expiry
+    await redis.expire(key, 60); // 1 minute window
+  }
+  
+  if (current > limit) {
+    throw new Error("Rate limit exceeded");
+  }
+  
+  return { remaining: limit - current };
+};
+```
+
+### Caching Expensive Queries
+
+Cache transaction aggregations:
+
+```typescript
+import { redis } from "@/lib/redis";
+
+const getCachedTransactionStats = async (userId: string, orgId: string | null) => {
+  const cacheKey = `stats:${orgId || userId}`;
+  
+  // Try cache first
+  const cached = await redis.get(cacheKey);
+  if (cached) {
+    return JSON.parse(cached);
+  }
+  
+  // Cache miss - fetch from database
+  const stats = await db.query(/* expensive query */);
+  
+  // Cache for 5 minutes
+  await redis.setex(cacheKey, 300, JSON.stringify(stats));
+  
+  return stats;
+};
+```
+
+### Invalidating Cache
+
+```typescript
+import { redis } from "@/lib/redis";
+
+// After creating/updating transaction
+await redis.del(`stats:${orgId || userId}`);
+
+// Pattern-based deletion
+const keys = await redis.keys(`stats:${orgId}:*`);
+if (keys.length > 0) {
+  await redis.del(...keys);
+}
+```
+
+## Redis Commands
+
+### String Operations
+
+```typescript
+// Set key-value
+await redis.set("key", "value");
+
+// Set with expiry (seconds)
+await redis.setex("key", 3600, "value");
+
+// Get value
+const value = await redis.get("key");
+
+// Delete key
+await redis.del("key");
+
+// Increment
+await redis.incr("counter");
+await redis.incrby("counter", 5);
+```
+
+### Hash Operations
+
+```typescript
+// Store object as hash
+await redis.hset("user:123", "name", "John Doe");
+await redis.hset("user:123", "email", "john@example.com");
+
+// Get hash field
+const name = await redis.hget("user:123", "name");
+
+// Get all fields
+const user = await redis.hgetall("user:123");
+
+// Delete hash field
+await redis.hdel("user:123", "email");
+```
+
+### Set Operations
+
+```typescript
+// Add to set
+await redis.sadd("active_users", "user_123", "user_456");
+
+// Get all members
+const users = await redis.smembers("active_users");
+
+// Check membership
+const isMember = await redis.sismember("active_users", "user_123");
+
+// Remove from set
+await redis.srem("active_users", "user_123");
+```
+
+### Sorted Sets (Leaderboards)
+
+```typescript
+// Add with score
+await redis.zadd("leaderboard", 100, "user_123");
+await redis.zadd("leaderboard", 150, "user_456");
+
+// Get top 10
+const top10 = await redis.zrevrange("leaderboard", 0, 9, "WITHSCORES");
+
+// Get user rank
+const rank = await redis.zrevrank("leaderboard", "user_123");
+```
+
+### List Operations
+
+```typescript
+// Push to list
+await redis.lpush("notifications", JSON.stringify(notification));
+
+// Get list range
+const notifications = await redis.lrange("notifications", 0, 9);
+
+// Pop from list
+const latest = await redis.lpop("notifications");
+```
+
+## Pub/Sub for Real-Time Updates
+
+### Publisher
+
+```typescript
+import { redis } from "@/lib/redis";
+
+// Publish transaction update
+await redis.publish(
+  "transactions:updates",
+  JSON.stringify({
+    type: "created",
+    transactionId: "tx_123",
+    userId: "user_456"
+  })
+);
+```
+
+### Subscriber
+
+```typescript
+import { Redis } from "ioredis";
+
+const subscriber = new Redis(process.env.REDIS_URL!);
+
+subscriber.subscribe("transactions:updates");
+
+subscriber.on("message", (channel, message) => {
+  const update = JSON.parse(message);
+  console.log(`New transaction: ${update.transactionId}`);
+  
+  // Invalidate cache, send websocket update, etc.
+});
+```
+
+## Production Configuration
+
+### Redis with Password
+
+```bash
+# .env
+REDIS_URL=redis://:your_secure_password@localhost:6379
+```
+
+```yaml
+# bu-redis.yml
+command: redis-server --appendonly yes --requirepass your_secure_password
+```
+
+### Redis Cluster (High Availability)
+
+For production, use a managed Redis service or cluster:
+
+```typescript
+import { Cluster } from "ioredis";
+
+const redis = new Cluster([
+  { host: "redis-1.example.com", port: 6379 },
+  { host: "redis-2.example.com", port: 6379 },
+  { host: "redis-3.example.com", port: 6379 },
+], {
+  redisOptions: {
+    password: process.env.REDIS_PASSWORD,
+  },
+});
+```
+
+### Managed Redis Services
+
+<CardGroup cols={3}>
+  <Card title="Upstash" icon="cloud">
+    Serverless Redis with global edge caching
+  </Card>
+  <Card title="Redis Cloud" icon="database">
+    Official Redis managed service
+  </Card>
+  <Card title="AWS ElastiCache" icon="aws">
+    Fully managed Redis on AWS
+  </Card>
+</CardGroup>
+
+#### Upstash Example
+
+```bash
+REDIS_URL=rediss://default:your_token@global-redis.upstash.io:6380
+```
+
+## Monitoring
+
+### Check Redis Connection
+
+```typescript
+import { redis } from "@/lib/redis";
+
+try {
+  await redis.ping();
+  console.log("Redis connected!");
+} catch (error) {
+  console.error("Redis connection failed:", error);
+}
+```
+
+### Monitor Redis Stats
+
+```bash
+# Via CLI
+docker exec bu-redis redis-cli INFO stats
+
+# Via Node.js
+const info = await redis.info("stats");
+console.log(info);
+```
+
+### Key Metrics
+
+```bash
+# Connected clients
+docker exec bu-redis redis-cli CLIENT LIST
+
+# Memory usage
+docker exec bu-redis redis-cli INFO memory
+
+# Slow queries
+docker exec bu-redis redis-cli SLOWLOG GET 10
+```
+
+## Performance Optimization
+
+### Connection Pooling
+
+```typescript
+const redis = new Redis(process.env.REDIS_URL!, {
+  maxRetriesPerRequest: 3,
+  enableReadyCheck: true,
+  lazyConnect: false,
+});
+```
+
+### Pipelining
+
+Batch multiple commands:
+
+```typescript
+const pipeline = redis.pipeline();
+
+pipeline.set("key1", "value1");
+pipeline.set("key2", "value2");
+pipeline.incr("counter");
+
+const results = await pipeline.exec();
+```
+
+### Lua Scripts (Atomic Operations)
+
+```typescript
+const script = `
+  local current = redis.call('GET', KEYS[1])
+  if tonumber(current) < tonumber(ARGV[1]) then
+    redis.call('INCR', KEYS[1])
+    return 1
+  else
+    return 0
+  end
+`;
+
+const result = await redis.eval(script, 1, "rate_limit:user_123", "100");
+```
+
+## Backup and Persistence
+
+### Enable Persistence
+
+```yaml
+# bu-redis.yml
+command: redis-server --appendonly yes --save 60 1000
+# Saves if 1000 keys changed in 60 seconds
+```
+
+### Manual Backup
+
+```bash
+# Create snapshot
+docker exec bu-redis redis-cli BGSAVE
+
+# Copy snapshot
+docker cp bu-redis:/data/dump.rdb ./backup/redis-dump.rdb
+```
+
+### Restore from Backup
+
+```bash
+# Stop Redis
+docker stop bu-redis
+
+# Replace snapshot
+docker cp ./backup/redis-dump.rdb bu-redis:/data/dump.rdb
+
+# Start Redis
+docker start bu-redis
+```
+
+## Security Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Strong Passwords" icon="lock">
+    Always set `requirepass` in production
+  </Card>
+  <Card title="Disable Dangerous Commands" icon="ban">
+    Rename FLUSHALL, FLUSHDB, CONFIG
+  </Card>
+  <Card title="Network Isolation" icon="network-wired">
+    Run Redis in private Docker network
+  </Card>
+  <Card title="Use TLS" icon="shield">
+    Enable SSL for Redis connections
+  </Card>
+</CardGroup>
+
+### Disable Dangerous Commands
+
+```yaml
+command: >
+  redis-server
+  --requirepass your_password
+  --rename-command FLUSHALL ""
+  --rename-command FLUSHDB ""
+  --rename-command CONFIG ""
+```
+
+## Troubleshooting
+
+### Connection Errors
+
+```
+Error: REDIS_URL is not set
+```
+
+**Solution**: Add `REDIS_URL` to `.env`:
+
+```bash
+REDIS_URL=redis://localhost:6379
+```
+
+### Authentication Errors
+
+```
+Error: NOAUTH Authentication required
+```
+
+**Solution**: Include password in URL:
+
+```bash
+REDIS_URL=redis://:your_password@localhost:6379
+```
+
+### Memory Issues
+
+```
+Error: OOM command not allowed when used memory > 'maxmemory'
+```
+
+**Solution**: Set eviction policy:
+
+```yaml
+command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+```
+
+## Alternative: Running Without Redis
+
+If you don't want to use Redis, ensure your application handles missing Redis gracefully:
+
+```typescript
+// Optional Redis client
+let redis: Redis | null = null;
+
+try {
+  if (process.env.REDIS_URL) {
+    redis = new Redis(process.env.REDIS_URL);
+  }
+} catch (error) {
+  console.warn("Redis not available, using in-memory cache");
+}
+
+export const getCache = async (key: string) => {
+  if (!redis) return null;
+  return await redis.get(key);
+};
+```
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="PostgreSQL Config" icon="database" href="/infrastructure/postgresql">
+    Optimize database settings
+  </Card>
+  <Card title="PostgREST Setup" icon="server" href="/infrastructure/postgrest">
+    Configure REST API
+  </Card>
+  <Card title="Docker Deployment" icon="rocket" href="/deployment/docker">
+    Deploy with Docker
+  </Card>
+</CardGroup>

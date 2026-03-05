@@ -1,0 +1,551 @@
+---
+title: '@budgetbee/billing'
+description: 'Polar integration for subscription and billing management'
+icon: 'credit-card'
+---
+
+## Overview
+
+The `@budgetbee/billing` package provides integration with [Polar](https://polar.sh/) for subscription management, payment processing, and billing operations.
+
+## Installation
+
+```bash
+pnpm add @budgetbee/billing --filter your-package
+```
+
+Or in your `package.json`:
+
+```json
+{
+  "dependencies": {
+    "@budgetbee/billing": "workspace:*"
+  }
+}
+```
+
+## Package Information
+
+```json
+{
+  "name": "@budgetbee/billing",
+  "version": "1.0.0",
+  "description": "Billing utilities + polar client.",
+  "main": "index.ts"
+}
+```
+
+## Exports
+
+```typescript
+import { polar } from "@budgetbee/billing";
+import { 
+  isPro,
+  isTeams,
+  isProOrTeams,
+  isProOrHigher,
+  isTeamsOrHigher 
+} from "@budgetbee/billing";
+```
+
+## Polar Client
+
+The package exports a pre-configured Polar SDK client:
+
+```typescript
+import { polar } from "@budgetbee/billing";
+
+// Client is automatically configured with access token
+const products = await polar.products.list();
+const subscriptions = await polar.subscriptions.list();
+```
+
+### Configuration
+
+The Polar client is initialized with your access token from environment variables:
+
+```typescript
+export const polar = new Polar({
+  accessToken: process.env.POLAR_ACCESS_TOKEN,
+});
+```
+
+<Warning>
+**Set your Polar access token** in `.env` file:
+```bash
+POLAR_ACCESS_TOKEN=your_polar_access_token
+```
+</Warning>
+
+## Subscription Tiers
+
+BudgetBee offers two subscription tiers:
+
+<CardGroup cols={2}>
+  <Card title="Pro" icon="star">
+    Individual users with advanced features
+  </Card>
+  <Card title="Teams" icon="users">
+    Organizations with collaboration features
+  </Card>
+</CardGroup>
+
+### Environment Variables
+
+Configure your product IDs in `.env`:
+
+```bash
+# Pro tier (monthly)
+POLAR_PRODUCT_PRO=prod_xxxxxxxxxxxx
+
+# Pro tier (yearly)
+POLAR_PRODUCT_PRO_YEARLY=prod_yyyyyyyyyyyy
+
+# Teams tier (monthly)
+POLAR_PRODUCT_TEAMS=prod_zzzzzzzzzzzz
+
+# Teams tier (yearly)
+POLAR_PRODUCT_TEAMS_YEARLY=prod_wwwwwwwwwwww
+```
+
+## Tier Checking Functions
+
+The package provides helper functions to check subscription tiers:
+
+### isPro()
+
+Check if a price ID is for the Pro tier:
+
+```typescript
+import { isPro } from "@budgetbee/billing";
+
+const userPriceId = user.subscription?.priceId;
+
+if (isPro(userPriceId)) {
+  // User has Pro subscription
+  console.log('Pro features enabled');
+}
+```
+
+### isTeams()
+
+Check if a price ID is for the Teams tier:
+
+```typescript
+import { isTeams } from "@budgetbee/billing";
+
+if (isTeams(userPriceId)) {
+  // User has Teams subscription
+  console.log('Teams features enabled');
+}
+```
+
+### isProOrTeams()
+
+Check if a price ID is for either Pro or Teams:
+
+```typescript
+import { isProOrTeams } from "@budgetbee/billing";
+
+if (isProOrTeams(userPriceId)) {
+  // User has any paid subscription
+  console.log('Premium features enabled');
+}
+```
+
+### isProOrHigher()
+
+Check if a price ID is Pro tier or higher:
+
+```typescript
+import { isProOrHigher } from "@budgetbee/billing";
+
+if (isProOrHigher(userPriceId)) {
+  // User has Pro or Teams subscription
+  console.log('Advanced features available');
+}
+```
+
+### isTeamsOrHigher()
+
+Check if a price ID is Teams tier or higher:
+
+```typescript
+import { isTeamsOrHigher } from "@budgetbee/billing";
+
+if (isTeamsOrHigher(userPriceId)) {
+  // User has Teams subscription (highest tier)
+  console.log('Organization features enabled');
+}
+```
+
+## Usage Examples
+
+### Feature Gating
+
+```typescript
+import { isProOrHigher } from "@budgetbee/billing";
+import { auth } from "@budgetbee/core/auth";
+
+export async function GET(request: Request) {
+  const session = await auth.api.getSession({
+    headers: request.headers
+  });
+
+  if (!session?.user) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  // Check if user has access to premium features
+  const priceId = session.user.subscription?.priceId;
+  
+  if (!isProOrHigher(priceId)) {
+    return new Response(
+      JSON.stringify({ error: 'Upgrade to Pro to access this feature' }),
+      { status: 403 }
+    );
+  }
+
+  // User has access, proceed with request
+  return new Response(
+    JSON.stringify({ data: 'Premium data' })
+  );
+}
+```
+
+### Conditional UI Rendering
+
+```tsx
+import { isTeamsOrHigher } from "@budgetbee/billing";
+import { Button } from "@budgetbee/ui/core/button";
+import { Badge } from "@budgetbee/ui/core/badge";
+
+function FeatureCard({ user }) {
+  const hasTeams = isTeamsOrHigher(user.subscription?.priceId);
+
+  return (
+    <div className="border rounded-lg p-4">
+      <div className="flex items-center gap-2">
+        <h3>Organization Management</h3>
+        {!hasTeams && <Badge>Teams Only</Badge>}
+      </div>
+      
+      {hasTeams ? (
+        <Button>Manage Organization</Button>
+      ) : (
+        <Button variant="outline">Upgrade to Teams</Button>
+      )}
+    </div>
+  );
+}
+```
+
+### Subscription Status Check
+
+```typescript
+import { polar, isProOrHigher } from "@budgetbee/billing";
+
+async function checkSubscriptionStatus(userId: string) {
+  // Get user's subscriptions from Polar
+  const subscriptions = await polar.subscriptions.list({
+    customerId: userId
+  });
+
+  const activeSubscription = subscriptions.items.find(
+    sub => sub.status === 'active'
+  );
+
+  if (!activeSubscription) {
+    return { hasAccess: false, tier: 'free' };
+  }
+
+  const priceId = activeSubscription.priceId;
+  
+  return {
+    hasAccess: isProOrHigher(priceId),
+    tier: isTeamsOrHigher(priceId) ? 'teams' : 'pro'
+  };
+}
+```
+
+## Integration with Better Auth
+
+BudgetBee uses Polar's Better Auth plugin for seamless integration:
+
+```typescript
+import { polar as polarPlugin } from "@polar-sh/better-auth";
+import { betterAuth } from "better-auth";
+import { polar } from "@budgetbee/billing";
+
+export const auth = betterAuth({
+  plugins: [
+    polarPlugin({
+      client: polar,
+      // Polar plugin configuration
+    })
+  ]
+});
+```
+
+### Available Better Auth Plugins
+
+The core package uses these Polar Better Auth plugins:
+
+<CodeGroup>
+```typescript Checkout
+import { checkout } from "@polar-sh/better-auth";
+
+// Handles checkout flow
+// Creates checkout sessions
+// Redirects users to payment page
+```
+
+```typescript Portal
+import { portal } from "@polar-sh/better-auth";
+
+// Customer portal for managing subscriptions
+// Update payment methods
+// View invoices
+// Cancel subscriptions
+```
+
+```typescript Usage
+import { usage } from "@polar-sh/better-auth";
+
+// Track usage-based billing
+// Report metered usage
+// View usage reports
+```
+
+```typescript Webhooks
+import { webhooks } from "@polar-sh/better-auth";
+
+// Handle Polar webhooks
+// Subscription status changes
+// Payment events
+// Invoice updates
+```
+</CodeGroup>
+
+## API Operations
+
+### List Products
+
+```typescript
+import { polar } from "@budgetbee/billing";
+
+const products = await polar.products.list();
+
+products.items.forEach(product => {
+  console.log(product.name, product.prices);
+});
+```
+
+### Get Subscription
+
+```typescript
+const subscription = await polar.subscriptions.get(subscriptionId);
+
+console.log(subscription.status);
+console.log(subscription.currentPeriodEnd);
+```
+
+### List Customer Subscriptions
+
+```typescript
+const subscriptions = await polar.subscriptions.list({
+  customerId: userId,
+  status: 'active'
+});
+```
+
+### Create Checkout Session
+
+```typescript
+const checkout = await polar.checkouts.create({
+  priceId: process.env.POLAR_PRODUCT_PRO,
+  customerId: userId,
+  successUrl: 'https://app.budgetbee.com/success',
+  cancelUrl: 'https://app.budgetbee.com/pricing'
+});
+
+// Redirect user to checkout.url
+```
+
+## Webhook Handling
+
+Handle Polar webhooks to sync subscription status:
+
+```typescript
+import { polar } from "@budgetbee/billing";
+
+export async function POST(request: Request) {
+  const signature = request.headers.get('polar-signature');
+  const body = await request.text();
+
+  // Verify webhook signature
+  const event = polar.webhooks.constructEvent(
+    body,
+    signature!,
+    process.env.POLAR_WEBHOOK_SECRET!
+  );
+
+  switch (event.type) {
+    case 'subscription.created':
+      // Handle new subscription
+      await handleSubscriptionCreated(event.data);
+      break;
+      
+    case 'subscription.updated':
+      // Handle subscription update
+      await handleSubscriptionUpdated(event.data);
+      break;
+      
+    case 'subscription.canceled':
+      // Handle cancellation
+      await handleSubscriptionCanceled(event.data);
+      break;
+  }
+
+  return new Response('OK');
+}
+```
+
+## Dependencies
+
+The package depends on:
+
+```json
+{
+  "dependencies": {
+    "@polar-sh/sdk": "0.42.2"
+  }
+}
+```
+
+## Environment Variables
+
+Required environment variables:
+
+```bash
+# Polar API
+POLAR_ACCESS_TOKEN=polar_xxxxxxxxxxxx
+
+# Product IDs
+POLAR_PRODUCT_PRO=prod_xxxxxxxxxxxx
+POLAR_PRODUCT_PRO_YEARLY=prod_yyyyyyyyyyyy
+POLAR_PRODUCT_TEAMS=prod_zzzzzzzzzzzz
+POLAR_PRODUCT_TEAMS_YEARLY=prod_wwwwwwwwwwww
+
+# Webhooks
+POLAR_WEBHOOK_SECRET=whsec_xxxxxxxxxxxx
+```
+
+## Best Practices
+
+<Card title="Always check nulls" icon="shield-check">
+  Subscription price IDs can be `null` or `undefined` - all helper functions handle this safely
+</Card>
+
+<Card title="Use tier helpers" icon="layer-group">
+  Use `isProOrHigher()` instead of checking individual tiers for better maintainability
+</Card>
+
+<Card title="Cache subscription data" icon="bolt">
+  Cache subscription status to avoid repeated API calls
+</Card>
+
+<Card title="Handle webhooks" icon="webhook">
+  Always implement webhook handlers to keep subscription status in sync
+</Card>
+
+## Common Patterns
+
+### Middleware for Route Protection
+
+```typescript
+import { isProOrHigher } from "@budgetbee/billing";
+import { auth } from "@budgetbee/core/auth";
+import { NextResponse } from "next/server";
+
+export async function middleware(request: Request) {
+  const session = await auth.api.getSession({
+    headers: request.headers
+  });
+
+  if (!session?.user) {
+    return NextResponse.redirect('/login');
+  }
+
+  const priceId = session.user.subscription?.priceId;
+  
+  if (!isProOrHigher(priceId)) {
+    return NextResponse.redirect('/upgrade');
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: '/dashboard/premium/:path*'
+};
+```
+
+### Server Actions
+
+```typescript
+'use server';
+
+import { isTeamsOrHigher } from "@budgetbee/billing";
+import { auth } from "@budgetbee/core/auth";
+
+export async function createOrganization(data: FormData) {
+  const session = await auth.api.getSession();
+  
+  if (!session?.user) {
+    throw new Error('Unauthorized');
+  }
+
+  const priceId = session.user.subscription?.priceId;
+  
+  if (!isTeamsOrHigher(priceId)) {
+    throw new Error('Teams subscription required');
+  }
+
+  // Create organization...
+}
+```
+
+## Troubleshooting
+
+### Subscription not detected
+
+Check that:
+1. `POLAR_ACCESS_TOKEN` is set correctly
+2. Product IDs match your Polar dashboard
+3. User's subscription is active in Polar
+
+### Webhook not receiving events
+
+Verify:
+1. Webhook URL is publicly accessible
+2. `POLAR_WEBHOOK_SECRET` matches Polar dashboard
+3. Webhook is enabled in Polar settings
+
+### Price ID comparison failing
+
+Ensure you're using the helper functions which handle:
+- Both monthly and yearly variants
+- Null and undefined values
+- Case sensitivity
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Core Package" icon="box" href="/packages/core">
+    Learn about auth integration with Polar
+  </Card>
+  <Card title="Project Structure" icon="folder-tree" href="/development/project-structure">
+    Understand how billing fits in the monorepo
+  </Card>
+</CardGroup>

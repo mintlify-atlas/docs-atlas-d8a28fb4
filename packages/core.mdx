@@ -1,0 +1,555 @@
+---
+title: '@budgetbee/core'
+description: 'Core package for authentication, database access, and business logic'
+icon: 'box'
+---
+
+## Overview
+
+The `@budgetbee/core` package is the heart of BudgetBee, providing essential functionality for authentication, database access, feature flags, and core business logic.
+
+## Installation
+
+```bash
+pnpm add @budgetbee/core --filter your-package
+```
+
+Or in your `package.json`:
+
+```json
+{
+  "dependencies": {
+    "@budgetbee/core": "workspace:*"
+  }
+}
+```
+
+## Package Information
+
+```json
+{
+  "name": "@budgetbee/core",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Core package for budgetbee"
+}
+```
+
+## Exports
+
+The package provides multiple entry points:
+
+```typescript
+// Authentication (server-side)
+import { auth } from "@budgetbee/core/auth";
+
+// Authentication (client-side)
+import { authClient } from "@budgetbee/core/auth-client";
+
+// Database access
+import { db, getDb } from "@budgetbee/core/db";
+import { getAuthAdminClient } from "@budgetbee/core/db-pool";
+
+// Feature flags
+import { getFeatureFlag } from "@budgetbee/core/feature-flags";
+
+// Error handling
+import { CustomError } from "@budgetbee/core/error";
+
+// UI components
+import { Component } from "@budgetbee/core/ui/component";
+```
+
+## Authentication
+
+### Server-Side Auth
+
+BudgetBee uses [Better Auth](https://better-auth.com) for authentication with several plugins:
+
+```typescript
+import { auth } from "@budgetbee/core/auth";
+
+// Get current session
+const session = await auth.api.getSession({
+  headers: request.headers
+});
+
+// Verify user is authenticated
+if (!session?.user) {
+  throw new Error('Unauthorized');
+}
+```
+
+### Configuration
+
+The auth system is configured with:
+
+- **Email & Password** authentication
+- **Email verification** required
+- **Organization support** for multi-tenant features
+- **JWT tokens** for API access
+- **Polar integration** for subscription management
+- **Role-based access control** (RBAC)
+
+### Plugins
+
+<CodeGroup>
+```typescript Better Auth
+import {
+  bearer,        // Bearer token authentication
+  customSession, // Custom session fields
+  jwt,           // JWT token support
+  organization   // Organization management
+} from "better-auth/plugins";
+```
+
+```typescript Polar Plugins
+import {
+  checkout,      // Checkout flow
+  polar,         // Polar integration
+  portal,        // Customer portal
+  usage,         // Usage tracking
+  webhooks       // Webhook handling
+} from "@polar-sh/better-auth";
+```
+</CodeGroup>
+
+### Client-Side Auth
+
+```typescript
+import { authClient } from "@budgetbee/core/auth-client";
+
+// Sign in
+const { data, error } = await authClient.signIn.email({
+  email: 'user@example.com',
+  password: 'password'
+});
+
+// Sign out
+await authClient.signOut();
+
+// Get current user
+const { data: session } = await authClient.getSession();
+
+// Get access token
+const { data: token } = await authClient.token();
+```
+
+### Email Verification
+
+Email verification is required and handled automatically:
+
+```typescript
+// Verification email is sent on signup
+// Uses @budgetbee/email package with Resend
+
+email: {
+  enabled: true,
+  requireEmailVerification: true,
+  sendVerificationEmail: async (data) => {
+    // Sends email via Resend
+  }
+}
+```
+
+### Password Reset
+
+```typescript
+// Request password reset
+await authClient.forgetPassword({
+  email: 'user@example.com',
+  redirectTo: '/reset-password'
+});
+
+// Reset password with token
+await authClient.resetPassword({
+  newPassword: 'newpassword',
+  token: 'reset-token'
+});
+```
+
+## Database Access
+
+### PostgREST Client
+
+BudgetBee uses [PostgREST](https://postgrest.org) for database access via REST API:
+
+```typescript
+import { db, getDb } from "@budgetbee/core/db";
+
+// With existing token
+const client = db(token);
+
+// Automatically fetch token
+const client = await getDb();
+
+// Query database
+const { data, error } = await client
+  .from('transactions')
+  .select('*')
+  .eq('user_id', userId)
+  .order('date', { ascending: false })
+  .limit(10);
+```
+
+### Query Examples
+
+<CodeGroup>
+```typescript Select
+// Get all transactions
+const { data } = await client
+  .from('transactions')
+  .select('*');
+
+// Select specific columns
+const { data } = await client
+  .from('transactions')
+  .select('id, amount, description');
+
+// Join with categories
+const { data } = await client
+  .from('transactions')
+  .select(`
+    *,
+    category:categories(*)
+  `);
+```
+
+```typescript Insert
+// Insert single row
+const { data, error } = await client
+  .from('transactions')
+  .insert({
+    amount: 100,
+    description: 'Groceries',
+    category_id: '123',
+    user_id: userId
+  })
+  .select()
+  .single();
+
+// Insert multiple rows
+const { data } = await client
+  .from('transactions')
+  .insert([
+    { amount: 50, description: 'Coffee' },
+    { amount: 30, description: 'Lunch' }
+  ]);
+```
+
+```typescript Update
+// Update by ID
+const { data } = await client
+  .from('transactions')
+  .update({ amount: 150 })
+  .eq('id', transactionId);
+
+// Update multiple rows
+const { data } = await client
+  .from('transactions')
+  .update({ category_id: newCategoryId })
+  .eq('category_id', oldCategoryId);
+```
+
+```typescript Delete
+// Delete by ID
+const { error } = await client
+  .from('transactions')
+  .delete()
+  .eq('id', transactionId);
+
+// Delete with conditions
+const { data } = await client
+  .from('transactions')
+  .delete()
+  .lt('date', '2023-01-01');
+```
+</CodeGroup>
+
+### Admin Database Access
+
+For operations requiring elevated privileges:
+
+```typescript
+import { 
+  getAuthAdminClient, 
+  getSubscriptionAdminClient 
+} from "@budgetbee/core/db-pool";
+
+// Auth operations (users, sessions)
+const authClient = getAuthAdminClient();
+const result = await authClient.query(
+  'SELECT * FROM users WHERE id = $1',
+  [userId]
+);
+
+// Subscription operations
+const subClient = getSubscriptionAdminClient();
+const result = await subClient.query(
+  'UPDATE subscriptions SET status = $1 WHERE id = $2',
+  ['active', subscriptionId]
+);
+```
+
+<Warning>
+**Use admin clients carefully** - They bypass row-level security. Only use for privileged operations.
+</Warning>
+
+## Feature Flags
+
+BudgetBee includes a flexible feature flag system with multi-level scoping:
+
+```typescript
+import { getFeatureFlag } from "@budgetbee/core/feature-flags";
+import type { FeatureFlagScope } from "@budgetbee/core/feature-flags";
+
+// Check global feature flag
+const isEnabled = await getFeatureFlag('new-dashboard');
+
+// Check account-specific flag
+const isEnabled = await getFeatureFlag('beta-features', {
+  accountId: user.id
+});
+
+// Check organization-specific flag
+const isEnabled = await getFeatureFlag('custom-branding', {
+  orgId: organization.id
+});
+
+// Check with full context
+const isEnabled = await getFeatureFlag('advanced-analytics', {
+  accountId: user.id,
+  orgId: organization.id
+});
+```
+
+### Feature Flag Scopes
+
+<Card title="Scope Priority" icon="layer-group">
+  Organization > Account > Global
+</Card>
+
+Feature flags can be scoped at three levels:
+
+1. **Global** - Applies to all users
+2. **Account** - Specific to individual user accounts
+3. **Organization** - Specific to organizations
+
+### Caching
+
+Feature flags are cached in Redis for 5 minutes:
+
+```typescript
+// Cache key format
+const cacheKey = `flag:${key}:org:${orgId}:acc:${accountId}`;
+
+// TTL: 300 seconds (5 minutes)
+await redis.setex(cacheKey, 300, String(value));
+```
+
+## Permissions
+
+BudgetBee implements role-based access control:
+
+```typescript
+import { 
+  accessControl,
+  owner,
+  admin,
+  editor,
+  viewer 
+} from "@budgetbee/core/permissions";
+```
+
+### Role Hierarchy
+
+<Steps>
+  <Step title="Owner">
+    Full access to organization, can manage all members and settings
+  </Step>
+  
+  <Step title="Admin">
+    Can manage organization settings and members (except owner)
+  </Step>
+  
+  <Step title="Editor">
+    Can create and edit content, limited administrative access
+  </Step>
+  
+  <Step title="Viewer">
+    Read-only access to organization data
+  </Step>
+</Steps>
+
+## UI Components
+
+The core package includes some UI components for auth flows:
+
+```typescript
+import { SignInForm } from "@budgetbee/core/ui/sign-in-form";
+import { SignUpForm } from "@budgetbee/core/ui/sign-up-form";
+```
+
+<Note>
+For general UI components, use `@budgetbee/ui` instead.
+</Note>
+
+## Dependencies
+
+Key dependencies used by `@budgetbee/core`:
+
+```json
+{
+  "dependencies": {
+    "@budgetbee/billing": "workspace:*",
+    "@budgetbee/email": "workspace:*",
+    "@polar-sh/better-auth": "1.6.4",
+    "@supabase/postgrest-js": "^1.21.4",
+    "better-auth": "1.4.17",
+    "ioredis": "^5.8.2",
+    "zod": "^4.3.6"
+  }
+}
+```
+
+## Environment Variables
+
+Required environment variables:
+
+```bash
+# Database
+POSTGRES_USER=your_db_user
+POSTGRES_PASSWORD=your_db_password
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=budgetbee
+
+# Admin Users
+POSTGRES_AUTH_ADMIN_USER=auth_admin
+POSTGRES_AUTH_ADMIN_PASSWORD=password
+POSTGRES_SUBSCRIPTION_ADMIN_USER=sub_admin
+POSTGRES_SUBSCRIPTION_ADMIN_PASSWORD=password
+
+# PostgREST
+NEXT_PUBLIC_PG_REST_URL=http://localhost:3000
+PGRST_JWT_SECRET=your_jwks_secret
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# Application
+NEXT_PUBLIC_APP_URL=http://localhost:3001
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+
+# Email (Resend)
+RESEND_API_KEY=your_resend_api_key
+SMTP_SENDER_NAME=BudgetBee
+SMTP_MAIL=noreply@budgetbee.com
+
+# Polar
+POLAR_ACCESS_TOKEN=your_polar_token
+```
+
+## Database Migrations
+
+Migrations are stored in `packages/core/migrations/`:
+
+```bash
+packages/core/migrations/
+├── better-auth-migrations.sql       # Auth tables
+├── init.sql                         # Initial schema
+├── migration_2024_01_15_*.sql      # Feature migrations
+└── migration_2024_02_01_*.sql      # More migrations
+```
+
+Run migrations in order:
+
+```bash
+make migrate
+```
+
+Or manually:
+
+```bash
+./scripts/run_migrations.sh
+```
+
+## Redis Configuration
+
+Redis is used for caching and session storage:
+
+```typescript
+import { redis } from "@budgetbee/core/redis";
+
+// Get value
+const value = await redis.get(key);
+
+// Set with expiration
+await redis.setex(key, 300, value);
+
+// Delete
+await redis.del(key);
+```
+
+## Best Practices
+
+<Card title="Use getDb()" icon="database">
+  Prefer `getDb()` over `db()` to automatically handle token management
+</Card>
+
+<Card title="Check Permissions" icon="shield">
+  Always verify user permissions before performing sensitive operations
+</Card>
+
+<Card title="Cache Feature Flags" icon="bolt">
+  Feature flags are automatically cached, don't implement additional caching
+</Card>
+
+<Card title="Handle Errors" icon="triangle-exclamation">
+  Always handle errors from database operations and auth calls
+</Card>
+
+## Troubleshooting
+
+### Database connection fails
+
+Check environment variables:
+
+```bash
+echo $NEXT_PUBLIC_PG_REST_URL
+echo $PGRST_JWT_SECRET
+```
+
+Ensure PostgREST is running:
+
+```bash
+cd infra
+docker compose ps
+```
+
+### Authentication not working
+
+Verify JWKS secret is set:
+
+1. Visit `http://localhost:3000/api/auth/jwks`
+2. Copy the secret
+3. Set `PGRST_JWT_SECRET` in `.env`
+4. Restart containers
+
+### Feature flags not updating
+
+Feature flags are cached for 5 minutes. Either:
+
+- Wait for cache to expire
+- Flush Redis: `redis-cli FLUSHDB`
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="UI Package" icon="palette" href="/packages/ui">
+    Explore the UI component library
+  </Card>
+  <Card title="Billing Package" icon="credit-card" href="/packages/billing">
+    Learn about subscription management
+  </Card>
+</CardGroup>

@@ -1,0 +1,255 @@
+---
+title: 'Getting Started'
+description: 'Set up BudgetBee locally for development'
+icon: 'rocket'
+---
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed on your system:
+
+- **Node.js** (v18 or higher)
+- **pnpm** (v10.25.0 or higher)
+- **Docker** and Docker Compose
+- **Git**
+
+<Note>
+BudgetBee uses pnpm as its package manager. Make sure you have the correct version installed: `pnpm@10.25.0`
+</Note>
+
+## Quick Setup
+
+The fastest way to get started is using the Makefile:
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/sammaji/budgetbee
+    cd budgetbee
+    ```
+  </Step>
+
+  <Step title="Run the setup command">
+    ```bash
+    make setup
+    ```
+    
+    This command will:
+    - Install all dependencies with `pnpm install`
+    - Create `.env` file and symlink it to all packages
+    - Start PostgreSQL and PostgREST containers
+    - Create database roles and run migrations
+    - Fetch JWKS secret and update `.env`
+  </Step>
+
+  <Step title="Update environment variables">
+    Open the `.env` file at the root and configure any missing variables:
+
+    ```bash
+    # Database
+    POSTGRESQL_USER=your_db_user
+    POSTGRES_AUTH_ADMIN_USER=postgres_auth_admin_user
+    POSTGRES_SUBSCRIPTION_ADMIN_USER=postgres_subscription_admin_user
+    
+    # Application URLs
+    NEXT_PUBLIC_SITE_URL=http://localhost:3000
+    NEXT_PUBLIC_APP_URL=http://localhost:3001
+    
+    # Optional: For testing with dummy data
+    DEV_ONLY_TEST_USER_ID=your_user_id
+    ```
+  </Step>
+
+  <Step title="Start development servers">
+    ```bash
+    make dev
+    ```
+    
+    This starts all three applications:
+    - **docs** - Documentation site at `http://localhost:3002`
+    - **site** - Landing page at `http://localhost:3000`
+    - **web** - Main application at `http://localhost:3001`
+  </Step>
+</Steps>
+
+## Manual Setup
+
+If you prefer to set up manually or the automated scripts fail:
+
+<Steps>
+  <Step title="Install dependencies">
+    ```bash
+    pnpm install
+    ```
+  </Step>
+
+  <Step title="Create environment file">
+    ```bash
+    chmod +x scripts/*
+    ./scripts/post_install.sh
+    ```
+    
+    This creates a `.env` file at the root and symlinks it to all packages that need environment variables.
+  </Step>
+
+  <Step title="Start PostgreSQL">
+    ```bash
+    cd infra
+    docker compose up -d
+    ```
+    
+    <Warning>
+    Ensure all environment variables starting with `POSTGRES_` are set before starting the containers.
+    </Warning>
+  </Step>
+
+  <Step title="Create database roles">
+    Create three PostgreSQL users with appropriate permissions:
+
+    ```sql
+    CREATE USER postgresql_user WITH PASSWORD 'password';
+    CREATE USER postgres_auth_admin_user WITH PASSWORD 'password';
+    CREATE USER postgres_subscription_admin_user WITH PASSWORD 'password';
+    ```
+    
+    Add these user names to your `.env` file.
+  </Step>
+
+  <Step title="Run migrations">
+    Run each migration file in `packages/core/migrations` in order:
+    
+    1. `better-auth-migrations.sql`
+    2. `init.sql`
+    3. All other migration files sorted by date
+
+    Or use the automated script:
+    ```bash
+    ./scripts/create_roles.sh
+    ./scripts/run_migrations.sh
+    ```
+  </Step>
+
+  <Step title="Get JWKS secret">
+    Start the development servers:
+    ```bash
+    pnpm turbo dev
+    ```
+    
+    Visit `http://localhost:3000/api/auth/jwks` and copy the JWKS secret. Set `PGRST_JWT_SECRET` in your `.env` file to this value.
+    
+    <Note>
+    You only need to do this once during initial setup.
+    </Note>
+  </Step>
+</Steps>
+
+## Available Make Commands
+
+BudgetBee includes a Makefile with helpful commands:
+
+<CodeGroup>
+```bash Setup
+# Install dependencies
+make install
+
+# Create .env and symlinks
+make setup-env
+
+# Full setup (install + env + db + jwks)
+make setup
+```
+
+```bash Database
+# Start PostgreSQL and PostgREST
+make docker-up
+
+# Stop containers
+make docker-down
+
+# Create database roles
+make create-roles
+
+# Run migrations
+make migrate
+
+# Full database setup
+make db-setup
+```
+
+```bash Development
+# Start all apps (docs, site, web)
+make dev
+
+# Push dummy data
+make dummy-data
+
+# Fetch and set JWKS secret
+make backfill-jwks
+```
+
+```bash Utility
+# Clean node_modules and build artifacts
+make clean
+```
+</CodeGroup>
+
+## Adding Dummy Data
+
+For testing purposes, you can populate the database with dummy data:
+
+```bash
+make dummy-data
+```
+
+Or manually:
+
+```bash
+source .env
+cd packages/core
+pnpm tsx --env=.env ./scripts/initdb.ts
+```
+
+<Note>
+Make sure to set `DEV_ONLY_TEST_USER_ID` in your `.env` file to your user ID before running this command.
+</Note>
+
+## Troubleshooting
+
+### Scripts are failing
+
+The automation scripts can be flaky. If they fail, follow the manual setup steps instead.
+
+### PostgreSQL connection issues
+
+Ensure your Docker containers are running:
+
+```bash
+cd infra
+docker compose ps
+```
+
+### Missing environment variables
+
+Check that all required variables in `.env` are set, especially:
+- Database connection strings
+- PostgreSQL user credentials
+- Application URLs
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Project Structure" icon="folder-tree" href="/development/project-structure">
+    Learn about the monorepo structure and organization
+  </Card>
+  <Card title="Code Guidelines" icon="code" href="/development/code-guidelines">
+    Review coding standards and best practices
+  </Card>
+</CardGroup>
+
+## Getting Help
+
+If you get stuck:
+
+- Email: [hello@sammaji.com](mailto:hello@sammaji.com)
+- Twitter: [@sammaji15](https://x.com/sammaji15)
+- GitHub Issues: [budgetbee/issues](https://github.com/sammaji/budgetbee/issues)

@@ -1,0 +1,450 @@
+---
+title: Roles & Permissions
+description: Role-based access control for organizations
+---
+
+# Roles & Permissions
+
+Budget Bee uses role-based access control (RBAC) to manage what organization members can do. This ensures security and proper data governance.
+
+## Overview
+
+The permission system controls:
+- Who can view data
+- Who can create or modify records
+- Who can manage team members
+- Who can change organization settings
+- Who can delete the organization
+
+## Available Roles
+
+Budget Bee defines four roles with different permission levels:
+
+<CardGroup cols={2}>
+  <Card title="Owner" icon="crown">
+    The organization creator with full control
+  </Card>
+  
+  <Card title="Admin" icon="user-gear">
+    Management role with most permissions
+  </Card>
+  
+  <Card title="Editor" icon="pen-to-square">
+    Can create and modify data
+  </Card>
+  
+  <Card title="Viewer" icon="eye">
+    Read-only access to organization data
+  </Card>
+</CardGroup>
+
+## Permission Matrix
+
+### Transaction Permissions
+
+| Action | Owner | Admin | Editor | Viewer |
+|--------|-------|-------|--------|--------|
+| List transactions | ✅ | ✅ | ✅ | ✅ |
+| View transaction details | ✅ | ✅ | ✅ | ✅ |
+| Create transactions | ✅ | ✅ | ✅ | ❌ |
+| Edit transactions | ✅ | ✅ | ✅ | ❌ |
+| Delete transactions | ✅ | ✅ | ✅ | ❌ |
+| Bulk edit transactions | ✅ | ✅ | ✅ | ❌ |
+| Import transactions | ✅ | ✅ | ✅ | ❌ |
+| Export transactions | ✅ | ✅ | ✅ | ✅ |
+
+### Subscription Permissions
+
+| Action | Owner | Admin | Editor | Viewer |
+|--------|-------|-------|--------|--------|
+| List subscriptions | ✅ | ✅ | ✅ | ✅ |
+| View subscription details | ✅ | ✅ | ✅ | ✅ |
+| Create subscriptions | ✅ | ✅ | ✅ | ❌ |
+| Edit subscriptions | ✅ | ✅ | ✅ | ❌ |
+| Delete subscriptions | ✅ | ✅ | ✅ | ❌ |
+| Pause/resume subscriptions | ✅ | ✅ | ✅ | ❌ |
+
+### Account Permissions
+
+| Action | Owner | Admin | Editor | Viewer |
+|--------|-------|-------|--------|--------|
+| View accounts | ✅ | ✅ | ✅ | ✅ |
+| Create accounts | ✅ | ✅ | ✅ | ❌ |
+| Edit accounts | ✅ | ✅ | ✅ | ❌ |
+| Delete accounts | ✅ | ✅ | ✅ | ❌ |
+
+### Member Management
+
+| Action | Owner | Admin | Editor | Viewer |
+|--------|-------|-------|--------|--------|
+| View members | ✅ | ✅ | ✅ | ✅ |
+| Invite members | ✅ | ✅ | ❌ | ❌ |
+| Remove members | ✅ | ✅ | ❌ | ❌ |
+| Change member roles | ✅ | ✅ | ❌ | ❌ |
+| Cancel invitations | ✅ | ✅ | ❌ | ❌ |
+
+### Organization Settings
+
+| Action | Owner | Admin | Editor | Viewer |
+|--------|-------|-------|--------|--------|
+| View settings | ✅ | ✅ | ❌ | ❌ |
+| Update organization name | ✅ | ✅ | ❌ | ❌ |
+| Transfer ownership | ✅ | ❌ | ❌ | ❌ |
+| Delete organization | ✅ | ❌ | ❌ | ❌ |
+
+## Permission Implementation
+
+Permissions are defined in the core package:
+
+```typescript
+// From packages/core/permissions.ts
+import { createAccessControl } from "better-auth/plugins/access";
+import { defaultStatements, adminAc, ownerAc, memberAc } 
+  from "better-auth/plugins/organization/access"
+
+const crudAccessControl = ["list", "get", "create", "update", "delete"] as const;
+
+export const statement = {
+  ...defaultStatements,
+  transaction: crudAccessControl,
+  subscription: crudAccessControl,
+  accounts: crudAccessControl,
+} as const;
+
+export const accessControl = createAccessControl(statement);
+
+export const owner = accessControl.newRole({
+  transaction: ["list", "get", "create", "update", "delete"],
+  subscription: ["list", "get", "create", "update", "delete"],
+  accounts: ["list", "get", "create", "update", "delete"],
+  ...ownerAc.statements,
+})
+
+export const admin = accessControl.newRole({
+  transaction: ["list", "get", "create", "update", "delete"],
+  subscription: ["list", "get", "create", "update", "delete"],
+  accounts: ["list", "get", "create", "update", "delete"],
+  ...adminAc.statements,
+})
+
+export const editor = accessControl.newRole({
+  transaction: ["list", "get", "create", "update", "delete"],
+  subscription: ["list", "get", "create", "update", "delete"],
+  accounts: ["list", "get", "create", "update", "delete"],
+  ...memberAc.statements,
+})
+
+export const viewer = accessControl.newRole({
+  transaction: ["list", "get"],
+  subscription: ["list", "get"],
+  accounts: ["list", "get"],
+})
+```
+
+## Database-Level Security
+
+Permissions are enforced at the database level using PostgreSQL functions:
+
+```sql
+-- From packages/core/migrations/init.sql
+CREATE OR REPLACE FUNCTION check_ac (
+  p_role TEXT, 
+  p_resource TEXT, 
+  p_action TEXT
+) RETURNS BOOLEAN AS $$
+DECLARE
+  v_allowed_actions TEXT[];
+BEGIN
+  -- Define permissions based on role and resource
+  CASE p_role
+    WHEN 'owner', 'admin', 'editor' THEN
+      -- Full CRUD access
+      CASE p_resource
+        WHEN 'transaction', 'subscription', 'accounts' THEN
+          v_allowed_actions := ARRAY['list', 'get', 'create', 'update', 'delete'];
+        ELSE
+          RETURN FALSE;
+      END CASE;
+    WHEN 'viewer' THEN
+      -- Read-only access
+      CASE p_resource
+        WHEN 'transaction', 'subscription', 'accounts' THEN
+          v_allowed_actions := ARRAY['list', 'get'];
+        ELSE
+          RETURN FALSE;
+      END CASE;
+    ELSE
+      RETURN FALSE;
+  END CASE;
+  
+  -- Check if the action is allowed
+  RETURN p_action = ANY(v_allowed_actions);
+END
+$$ LANGUAGE plpgsql STABLE;
+```
+
+### Row-Level Security Policies
+
+RLS policies use the access control function:
+
+```sql
+-- SELECT policy - requires 'list' or 'get' permission
+CREATE POLICY limit_transactions_select ON transactions FOR SELECT
+TO authenticated USING (
+  (
+    organization_id IS NULL
+    AND user_id = uid ()
+  )
+  OR (
+    organization_id = org_id ()
+    AND (
+      check_ac_current ('transaction', 'list')
+      OR check_ac_current ('transaction', 'get')
+    )
+  )
+);
+
+-- INSERT policy - requires 'create' permission
+CREATE POLICY limit_transactions_insert ON transactions FOR INSERT
+TO authenticated WITH CHECK (
+  (
+    organization_id IS NULL
+    AND user_id = uid ()
+  )
+  OR (
+    organization_id = org_id ()
+    AND check_ac_current ('transaction', 'create')
+  )
+);
+
+-- UPDATE policy - requires 'update' permission
+CREATE POLICY limit_transactions_update ON transactions FOR UPDATE
+TO authenticated USING (
+  (
+    organization_id IS NULL
+    AND user_id = uid ()
+  )
+  OR (
+    organization_id = org_id ()
+    AND check_ac_current ('transaction', 'update')
+  )
+);
+
+-- DELETE policy - requires 'delete' permission
+CREATE POLICY limit_transactions_delete ON transactions FOR DELETE
+TO authenticated USING (
+  (
+    organization_id IS NULL
+    AND user_id = uid ()
+  )
+  OR (
+    organization_id = org_id ()
+    AND check_ac_current ('transaction', 'delete')
+  )
+);
+```
+
+## Assigning Roles
+
+### When Inviting Members
+
+Set the role when sending an invitation:
+
+<Steps>
+  <Step title="Open Invite Dialog">
+    Navigate to **Organizations** → **Settings** → **Members**.
+  </Step>
+  
+  <Step title="Enter Email and Role">
+    Provide the member's email address and select their role from the dropdown.
+  </Step>
+  
+  <Step title="Send Invitation">
+    The invitation email will include their assigned role.
+  </Step>
+</Steps>
+
+### Changing Member Roles
+
+Owners and admins can change member roles:
+
+<Steps>
+  <Step title="View Members List">
+    Go to **Organizations** → **Settings** → **Members**.
+  </Step>
+  
+  <Step title="Select Member">
+    Click on the member whose role you want to change.
+  </Step>
+  
+  <Step title="Update Role">
+    Select the new role from the dropdown.
+  </Step>
+  
+  <Step title="Save Changes">
+    The role change takes effect immediately.
+  </Step>
+</Steps>
+
+<Warning>
+  You cannot change your own role. Another admin or the owner must change it.
+</Warning>
+
+## Special Cases
+
+### Organization Owner
+
+- Only one owner per organization
+- Automatically assigned to the organization creator
+- Can transfer ownership to another member
+- Cannot be removed without transferring ownership first
+
+### Transferring Ownership
+
+<Steps>
+  <Step title="Access Settings">
+    Navigate to **Organizations** → **Settings** (owner only).
+  </Step>
+  
+  <Step title="Select New Owner">
+    Choose a current admin to become the new owner.
+  </Step>
+  
+  <Step title="Confirm Transfer">
+    Type the organization name to confirm the transfer.
+  </Step>
+  
+  <Step title="Role Changes">
+    - The selected admin becomes the owner
+    - You become an admin
+    - The transfer is permanent
+  </Step>
+</Steps>
+
+## Permission Checks
+
+### Client-Side Checks
+
+Use helper functions to check permissions in the UI:
+
+```typescript
+// From apps/web/lib/organization.ts
+export const canInviteMembers = (role?: string) => {
+  return role === 'owner' || role === 'admin';
+};
+
+export const canUpdateOrganization = (role?: string) => {
+  return role === 'owner' || role === 'admin';
+};
+
+export const canDeleteOrganization = (role?: string) => {
+  return role === 'owner';
+};
+```
+
+### Server-Side Checks
+
+Permissions are always validated server-side:
+
+```typescript
+// JWT includes organization role
+const token = decodeJWT(request.headers.authorization);
+const userRole = token.claims.organization_role;
+
+if (!canPerformAction(userRole, 'transaction', 'create')) {
+  throw new Error('Insufficient permissions');
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Principle of Least Privilege" icon="lock">
+    Grant users the minimum permissions needed for their work.
+  </Card>
+  
+  <Card title="Regular Audits" icon="clipboard-check">
+    Review member roles periodically and adjust as responsibilities change.
+  </Card>
+  
+  <Card title="Use Viewer Role" icon="eye">
+    Assign viewer role to stakeholders who only need to review data.
+  </Card>
+  
+  <Card title="Multiple Admins" icon="users-gear">
+    Have at least 2 admins to ensure continuity if one admin is unavailable.
+  </Card>
+</CardGroup>
+
+## Common Role Assignments
+
+### Small Business
+
+- **Owner**: Business owner
+- **Admin**: CFO, Finance Manager
+- **Editor**: Bookkeeper, Accountant
+- **Viewer**: CEO, Department Heads
+
+### Freelancer Team
+
+- **Owner**: Lead freelancer
+- **Admin**: Business partner
+- **Editor**: Assistant, Subcontractor
+- **Viewer**: Client (for transparency)
+
+### Family Finances
+
+- **Owner**: Primary account holder
+- **Admin**: Spouse/Partner
+- **Editor**: Older children managing allowances
+- **Viewer**: Financial advisor
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Permission denied error">
+    If you see permission errors:
+    - Verify your role in the organization
+    - Ensure you're in the correct organization context
+    - Check if your role was recently changed
+    - Contact an admin if you need additional permissions
+  </Accordion>
+  
+  <Accordion title="Cannot change member role">
+    Check:
+    - You have owner or admin permissions
+    - You're not trying to change your own role
+    - The member is actually part of the organization
+    - You're not trying to create a second owner
+  </Accordion>
+  
+  <Accordion title="Viewer can see edit buttons">
+    This is a UI bug. Even if buttons appear:
+    - Viewers cannot actually save edits
+    - Database policies block unauthorized changes
+    - Report this issue for UI fixes
+  </Accordion>
+</AccordionGroup>
+
+## Security Considerations
+
+<Warning>
+  **Never share organization owner credentials.** Instead, add members with appropriate roles.
+</Warning>
+
+- Permissions are enforced at the database level, not just in the UI
+- JWT tokens include role information but are validated server-side
+- Row-level security policies prevent unauthorized data access
+- Audit logs track who made changes (future feature)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Invite Members" icon="user-plus" href="/organizations/invitations">
+    Learn how to invite team members to your organization.
+  </Card>
+  
+  <Card title="Organization Overview" icon="building" href="/organizations/overview">
+    Understand organization concepts and management.
+  </Card>
+</CardGroup>

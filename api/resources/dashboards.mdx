@@ -1,0 +1,537 @@
+---
+title: 'Dashboards'
+description: 'Create and manage custom financial dashboards'
+icon: 'chart-mixed'
+---
+
+## Overview
+
+Dashboards in Budget Bee provide customizable views of financial data, aggregations, and analytics. They enable users to create personalized financial reporting views.
+
+<Note>
+  The dashboards resource is planned for future implementation. This documentation describes the intended API structure based on common dashboard patterns.
+</Note>
+
+### Base URL
+
+```
+{NEXT_PUBLIC_PG_REST_URL}/dashboards
+```
+
+### Authorization
+
+All dashboard endpoints require authentication via JWT token:
+
+```bash
+Authorization: Bearer {JWT_TOKEN}
+```
+
+---
+
+## Dashboard Schema
+
+<ResponseField name="id" type="uuid">
+  Unique dashboard identifier
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Dashboard name/title
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Dashboard description
+</ResponseField>
+
+<ResponseField name="layout" type="jsonb">
+  Dashboard layout configuration (widgets, positions, sizes)
+</ResponseField>
+
+<ResponseField name="filters" type="jsonb">
+  Default filters applied to dashboard data
+</ResponseField>
+
+<ResponseField name="date_range" type="object">
+  Default date range for dashboard queries
+</ResponseField>
+
+<ResponseField name="is_default" type="boolean">
+  Whether this is the default dashboard for the user/org
+</ResponseField>
+
+<ResponseField name="visibility" type="string">
+  Dashboard visibility: `private`, `shared`, `public`
+</ResponseField>
+
+<ResponseField name="user_id" type="string">
+  Owner user ID
+</ResponseField>
+
+<ResponseField name="organization_id" type="string">
+  Organization ID (null for personal dashboards)
+</ResponseField>
+
+<ResponseField name="created_at" type="timestamp">
+  Dashboard creation timestamp
+</ResponseField>
+
+<ResponseField name="updated_at" type="timestamp">
+  Last update timestamp
+</ResponseField>
+
+---
+
+## List Dashboards
+
+Retrieve all dashboards for the authenticated user or organization.
+
+```bash
+GET /dashboards
+```
+
+### Query Parameters
+
+<ParamField query="select" type="string">
+  Columns to return. Default: `*`
+</ParamField>
+
+<ParamField query="order" type="string">
+  Sort order. Example: `name.asc` or `created_at.desc`
+</ParamField>
+
+<ParamField query="visibility" type="string">
+  Filter by visibility level
+</ParamField>
+
+### Request Example
+
+```bash
+curl -X GET "{NEXT_PUBLIC_PG_REST_URL}/dashboards?order=name.asc" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Content-Type: application/json"
+```
+
+### Response Example
+
+```json
+[
+  {
+    "id": "dash_abc123",
+    "name": "Monthly Overview",
+    "description": "High-level view of monthly finances",
+    "layout": {
+      "widgets": [
+        {
+          "id": "widget_1",
+          "type": "summary_cards",
+          "position": {"x": 0, "y": 0},
+          "size": {"w": 12, "h": 2}
+        },
+        {
+          "id": "widget_2",
+          "type": "expense_chart",
+          "position": {"x": 0, "y": 2},
+          "size": {"w": 8, "h": 4}
+        }
+      ]
+    },
+    "filters": {
+      "date_range": "last_30_days",
+      "categories": []
+    },
+    "is_default": true,
+    "visibility": "private",
+    "user_id": "usr_abc123",
+    "organization_id": null,
+    "created_at": "2024-01-15T10:30:00Z",
+    "updated_at": "2024-01-20T14:22:00Z"
+  }
+]
+```
+
+---
+
+## Get Dashboard
+
+Retrieve a single dashboard by ID.
+
+```bash
+GET /dashboards?id=eq.{dashboard_id}
+```
+
+### Request Example
+
+```bash
+curl -X GET "{NEXT_PUBLIC_PG_REST_URL}/dashboards?id=eq.dash_abc123" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Accept: application/vnd.pgrst.object+json"
+```
+
+---
+
+## Create Dashboard
+
+Create a new dashboard.
+
+```bash
+POST /dashboards
+```
+
+### Request Body
+
+<ParamField body="name" type="string" required>
+  Dashboard name
+</ParamField>
+
+<ParamField body="description" type="string">
+  Dashboard description
+</ParamField>
+
+<ParamField body="layout" type="object" required>
+  Dashboard layout with widgets
+</ParamField>
+
+<ParamField body="filters" type="object">
+  Default filters
+</ParamField>
+
+<ParamField body="is_default" type="boolean">
+  Set as default dashboard
+</ParamField>
+
+<ParamField body="visibility" type="string">
+  Visibility: `private`, `shared`, `public`
+</ParamField>
+
+### Request Example
+
+```bash
+curl -X POST "{NEXT_PUBLIC_PG_REST_URL}/dashboards" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: return=representation" \
+  -d '{
+    "name": "Expense Analysis",
+    "description": "Detailed expense breakdown and trends",
+    "layout": {
+      "widgets": [
+        {
+          "id": "widget_1",
+          "type": "category_breakdown",
+          "position": {"x": 0, "y": 0},
+          "size": {"w": 6, "h": 4},
+          "config": {
+            "chart_type": "pie",
+            "show_legend": true
+          }
+        },
+        {
+          "id": "widget_2",
+          "type": "trend_chart",
+          "position": {"x": 6, "y": 0},
+          "size": {"w": 6, "h": 4},
+          "config": {
+            "chart_type": "line",
+            "grouping": "monthly"
+          }
+        }
+      ]
+    },
+    "filters": {
+      "date_range": "last_90_days",
+      "transaction_type": "expense"
+    },
+    "is_default": false,
+    "visibility": "private"
+  }'
+```
+
+### Response Example
+
+```json
+{
+  "id": "dash_def456",
+  "name": "Expense Analysis",
+  "description": "Detailed expense breakdown and trends",
+  "layout": {
+    "widgets": [
+      {
+        "id": "widget_1",
+        "type": "category_breakdown",
+        "position": {"x": 0, "y": 0},
+        "size": {"w": 6, "h": 4}
+      }
+    ]
+  },
+  "is_default": false,
+  "visibility": "private",
+  "created_at": "2024-01-21T09:15:00Z"
+}
+```
+
+---
+
+## Update Dashboard
+
+Update an existing dashboard.
+
+```bash
+PATCH /dashboards?id=eq.{dashboard_id}
+```
+
+### Request Example
+
+```bash
+curl -X PATCH "{NEXT_PUBLIC_PG_REST_URL}/dashboards?id=eq.dash_abc123" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: return=representation" \
+  -d '{
+    "name": "Monthly Financial Overview",
+    "layout": {
+      "widgets": [
+        {
+          "id": "widget_1",
+          "type": "summary_cards",
+          "position": {"x": 0, "y": 0},
+          "size": {"w": 12, "h": 2}
+        }
+      ]
+    }
+  }'
+```
+
+---
+
+## Delete Dashboard
+
+Delete a dashboard permanently.
+
+```bash
+DELETE /dashboards?id=eq.{dashboard_id}
+```
+
+### Request Example
+
+```bash
+curl -X DELETE "{NEXT_PUBLIC_PG_REST_URL}/dashboards?id=eq.dash_abc123" \
+  -H "Authorization: Bearer {JWT_TOKEN}"
+```
+
+---
+
+## Widget Types
+
+### Summary Cards
+
+<Expandable title="Summary Cards">
+  Display key financial metrics
+  
+  ```json
+  {
+    "type": "summary_cards",
+    "config": {
+      "metrics": ["total_income", "total_expenses", "net_balance"],
+      "comparison_period": "previous_month"
+    }
+  }
+  ```
+</Expandable>
+
+### Category Breakdown
+
+<Expandable title="Category Breakdown">
+  Pie or donut chart of spending by category
+  
+  ```json
+  {
+    "type": "category_breakdown",
+    "config": {
+      "chart_type": "donut",
+      "show_legend": true,
+      "top_n": 10
+    }
+  }
+  ```
+</Expandable>
+
+### Trend Chart
+
+<Expandable title="Trend Chart">
+  Line or bar chart showing trends over time
+  
+  ```json
+  {
+    "type": "trend_chart",
+    "config": {
+      "chart_type": "line",
+      "grouping": "daily",
+      "metrics": ["expenses", "income"]
+    }
+  }
+  ```
+</Expandable>
+
+### Transaction List
+
+<Expandable title="Transaction List">
+  Recent or filtered transaction list
+  
+  ```json
+  {
+    "type": "transaction_list",
+    "config": {
+      "limit": 10,
+      "filters": {
+        "status": "paid"
+      },
+      "columns": ["date", "name", "amount", "category"]
+    }
+  }
+  ```
+</Expandable>
+
+### Subscription Overview
+
+<Expandable title="Subscription Overview">
+  Active subscriptions and costs
+  
+  ```json
+  {
+    "type": "subscription_overview",
+    "config": {
+      "show_annual_cost": true,
+      "group_by": "category"
+    }
+  }
+  ```
+</Expandable>
+
+---
+
+## Dashboard Analytics
+
+Dashboards can query aggregated data using PostgREST functions:
+
+### Transaction Distribution
+
+```bash
+POST /rpc/get_transaction_distribution_by_category
+```
+
+```json
+{
+  "params": {
+    "user_id": "usr_abc123",
+    "organization_id": null,
+    "filters": {
+      "start_date": "2024-01-01",
+      "end_date": "2024-01-31"
+    }
+  }
+}
+```
+
+### Budget vs Actual
+
+```bash
+GET /rpc/get_budget_comparison?start_date=2024-01-01&end_date=2024-01-31
+```
+
+### Income vs Expenses
+
+```bash
+GET /rpc/get_cash_flow?grouping=monthly&periods=12
+```
+
+---
+
+## Date Range Presets
+
+Common date range presets for dashboard filters:
+
+- `today` - Current day
+- `yesterday` - Previous day
+- `last_7_days` - Last 7 days
+- `last_30_days` - Last 30 days
+- `this_week` - Current week (Mon-Sun)
+- `last_week` - Previous week
+- `this_month` - Current month
+- `last_month` - Previous month
+- `this_quarter` - Current quarter
+- `last_quarter` - Previous quarter
+- `this_year` - Current year
+- `last_year` - Previous year
+- `all_time` - All available data
+- `custom` - Custom date range
+
+---
+
+## Dashboard Sharing
+
+### Visibility Levels
+
+<Card title="Private" icon="lock">
+  Only accessible by the creator
+</Card>
+
+<Card title="Shared" icon="users">
+  Accessible by organization members
+</Card>
+
+<Card title="Public" icon="globe">
+  Accessible via public link (read-only)
+</Card>
+
+### Share Dashboard
+
+```bash
+PATCH /dashboards?id=eq.{dashboard_id}
+```
+
+```json
+{
+  "visibility": "shared",
+  "metadata": {
+    "shared_with": ["usr_def456", "usr_ghi789"]
+  }
+}
+```
+
+---
+
+## Access Control
+
+Dashboard access follows organization role permissions:
+
+<Card title="Owner, Admin, Editor" icon="check">
+  Full access: list, get, create, update, delete
+</Card>
+
+<Card title="Viewer" icon="eye">
+  Can view shared dashboards, cannot create or modify
+</Card>
+
+---
+
+## Best Practices
+
+### Dashboard Design
+
+1. **Focus on KPIs** - Display the most important metrics prominently
+2. **Logical grouping** - Group related widgets together
+3. **Consistent styling** - Use consistent colors and chart types
+4. **Performance** - Limit widgets per dashboard (8-12 max)
+
+### Widget Configuration
+
+1. **Clear titles** - Use descriptive widget titles
+2. **Appropriate charts** - Choose chart types that match the data
+3. **Date ranges** - Set sensible default date ranges
+4. **Drill-down** - Enable clicking to view details
+
+### Organization
+
+1. **Multiple dashboards** - Create dashboards for different purposes
+2. **Default dashboard** - Set a default for quick access
+3. **Regular updates** - Review and update dashboard layouts
+4. **Share insights** - Use shared dashboards for team collaboration

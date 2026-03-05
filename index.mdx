@@ -1,97 +1,276 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Budget Bee Documentation"
+description: "Your simple accounting tool for managing income, expenses, subscriptions, and budgets"
+mode: "custom"
 ---
 
-## Setting up
+<div className="relative overflow-hidden dark:bg-[#121418] bg-white py-20">
+  <div className="max-w-6xl mx-auto px-6">
+    <div className="grid lg:grid-cols-12 gap-12 items-center">
+      <div className="lg:col-span-7">
+        <h1 className="text-5xl sm:text-6xl font-bold dark:text-white text-gray-900 mb-6">
+          Welcome to Budget Bee Documentation
+        </h1>
+        <p className="text-lg sm:text-xl dark:text-gray-400 text-gray-600 mb-8 max-w-2xl">
+          Learn how to track your finances, manage subscriptions, create custom dashboards, and collaborate with your team using Budget Bee's powerful features.
+        </p>
+        <div className="flex flex-wrap gap-4">
+          <a
+            href="/quickstart"
+            className="inline-flex items-center px-6 py-3 rounded-full font-semibold text-white transition-all hover:opacity-90"
+            style={{ backgroundColor: '#04fb9b' }}
+          >
+            Get Started
+            <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          </a>
+          <a
+            href="/api/authentication/overview"
+            className="inline-flex items-center px-6 py-3 rounded-full font-semibold dark:text-white text-gray-900 dark:bg-white/10 bg-gray-100 dark:border-white/20 border border-gray-300 transition-all dark:hover:bg-white/20 hover:bg-gray-200"
+          >
+            API Reference
+            <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
+        </div>
+      </div>
+      <div className="lg:col-span-5 hidden lg:block">
+        <div className="dark:bg-[#1b1f23] bg-gray-50 rounded-2xl p-8 dark:border-[#2f3338] border border-gray-200" style={{ boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)' }}>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#04fb9b' }}>
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-semibold dark:text-white text-gray-900">Track Transactions</h3>
+                <p className="text-sm dark:text-gray-400 text-gray-600">Manage income and expenses</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#047c4c' }}>
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-semibold dark:text-white text-gray-900">Custom Dashboards</h3>
+                <p className="text-sm dark:text-gray-400 text-gray-600">Visualize your data</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#04fb9b' }}>
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-semibold dark:text-white text-gray-900">Team Collaboration</h3>
+                <p className="text-sm dark:text-gray-400 text-gray-600">Work together seamlessly</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-Get your documentation site up and running in minutes.
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold dark:text-white text-gray-900 mb-3">Quick Start</h2>
+  <p className="dark:text-gray-400 text-gray-600 mb-8">Get up and running with Budget Bee in minutes</p>
+  
+  <Steps>
+    <Step title="Create your account">
+      Sign up for Budget Bee and verify your email address to get started.
+      
+      ```bash
+      curl -X POST https://api.budget-bee.site/auth/sign-up \
+        -H "Content-Type: application/json" \
+        -d '{"email": "you@example.com", "password": "secure_password"}'
+      ```
+    </Step>
+    
+    <Step title="Set up your first account">
+      Create an account to track your bank account, credit card, or cash wallet.
+      
+      ```typescript
+      const account = await fetch('/accounts', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer YOUR_TOKEN' },
+        body: JSON.stringify({
+          name: 'Main Checking',
+          type: 'bank',
+          currency: 'USD',
+          balance: 1000.00
+        })
+      });
+      ```
+    </Step>
+    
+    <Step title="Add your first transaction">
+      Start tracking your income and expenses by adding transactions.
+      
+      <Accordion title="View example response">
+        ```json
+        {
+          "id": "txn_123456",
+          "amount": -45.99,
+          "description": "Grocery shopping",
+          "category": "Food & Dining",
+          "date": "2026-03-05",
+          "account_id": "acc_789"
+        }
+        ```
+      </Accordion>
+      
+      Learn more in our [Transactions guide](/features/transactions).
+    </Step>
+  </Steps>
+</div>
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
-  </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold dark:text-white text-gray-900 mb-3">Explore Core Features</h2>
+  <p className="dark:text-gray-400 text-gray-600 mb-8">Discover everything Budget Bee has to offer</p>
+  
+  <CardGroup cols={3}>
     <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
+      title="Transactions"
+      icon="receipt"
+      href="/features/transactions"
+    >
+      Track income and expenses with powerful filtering and bulk editing capabilities.
+    </Card>
+    <Card
+      title="Accounts"
+      icon="wallet"
+      href="/features/accounts"
+    >
+      Manage multiple bank accounts, credit cards, and wallets in one place.
+    </Card>
+    <Card
+      title="Subscriptions"
+      icon="rotate"
+      href="/features/subscriptions"
+    >
+      Monitor recurring payments and never miss a subscription renewal.
+    </Card>
+    <Card
+      title="Dashboards"
+      icon="chart-line"
+      href="/features/dashboards"
+    >
+      Create custom dashboards with drag-and-drop widgets and visualizations.
+    </Card>
+    <Card
+      title="Budgets"
+      icon="piggy-bank"
+      href="/features/budgets"
+    >
+      Set spending limits and track your progress toward financial goals.
+    </Card>
+    <Card
+      title="Categories"
+      icon="tags"
+      href="/features/categories"
+    >
+      Organize transactions with customizable categories and tags.
+    </Card>
+  </CardGroup>
+</div>
 
-## Create beautiful pages
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold dark:text-white text-gray-900 mb-3">Self-Hosting & Development</h2>
+  <p className="dark:text-gray-400 text-gray-600 mb-8">Deploy Budget Bee on your own infrastructure or contribute to the project</p>
+  
+  <CardGroup cols={2}>
+    <Card
+      title="Docker Deployment"
+      icon="docker"
+      href="/deployment/docker"
+    >
+      Deploy Budget Bee using Docker Compose with PostgreSQL and PostgREST.
+    </Card>
+    <Card
+      title="Database Setup"
+      icon="database"
+      href="/configuration/database-setup"
+    >
+      Configure PostgreSQL with access control and run migrations.
+    </Card>
+    <Card
+      title="Contributing Guide"
+      icon="code-branch"
+      href="/development/getting-started"
+    >
+      Set up your local development environment and start contributing.
+    </Card>
+    <Card
+      title="Project Structure"
+      icon="folder-tree"
+      href="/development/project-structure"
+    >
+      Understand the monorepo structure with apps and shared packages.
+    </Card>
+  </CardGroup>
+</div>
 
-Everything you need to create world-class documentation.
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold dark:text-white text-gray-900 mb-3">API Reference</h2>
+  <p className="dark:text-gray-400 text-gray-600 mb-8">Integrate Budget Bee into your applications</p>
+  
+  <CardGroup cols={2}>
+    <Card
+      title="Authentication"
+      icon="key"
+      href="/api/authentication/overview"
+    >
+      Secure your API requests with JWT-based authentication.
+    </Card>
+    <Card
+      title="Transactions API"
+      icon="money-bill"
+      href="/api/resources/transactions"
+    >
+      Create, read, update, and delete transaction records.
+    </Card>
+    <Card
+      title="Organizations API"
+      icon="building"
+      href="/api/resources/organizations"
+    >
+      Manage multi-tenant organizations with role-based access control.
+    </Card>
+    <Card
+      title="Dashboards API"
+      icon="grid"
+      href="/api/resources/dashboards"
+    >
+      Build and customize dashboard views programmatically.
+    </Card>
+  </CardGroup>
+</div>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
-
-## Need inspiration?
-
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<div className="mt-20 mb-16 max-w-5xl mx-auto px-6">
+  <div className="dark:bg-[#1b1f23] bg-gray-50 rounded-2xl p-8 sm:p-12 dark:border-[#2f3338] border border-gray-200" style={{ boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)' }}>
+    <div className="text-center max-w-2xl mx-auto">
+      <h2 className="text-3xl font-bold dark:text-white text-gray-900 mb-4">Ready to get started?</h2>
+      <p className="dark:text-gray-400 text-gray-600 mb-8">
+        Follow our quickstart guide to set up Budget Bee and start tracking your finances in minutes.
+      </p>
+      <a
+        href="/quickstart"
+        className="inline-flex items-center px-8 py-4 rounded-full font-semibold text-white transition-all hover:opacity-90"
+        style={{ backgroundColor: '#04fb9b' }}
+      >
+        Start Building
+        <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+        </svg>
+      </a>
+    </div>
+  </div>
+</div>

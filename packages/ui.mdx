@@ -1,0 +1,597 @@
+---
+title: '@budgetbee/ui'
+description: 'Shared UI component library built with shadcn/ui'
+icon: 'palette'
+---
+
+## Overview
+
+The `@budgetbee/ui` package provides a comprehensive library of reusable React components built with [shadcn/ui](https://ui.shadcn.com/), [Radix UI](https://www.radix-ui.com/), and [Tailwind CSS](https://tailwindcss.com/).
+
+## Installation
+
+```bash
+pnpm add @budgetbee/ui --filter your-package
+```
+
+Or in your `package.json`:
+
+```json
+{
+  "dependencies": {
+    "@budgetbee/ui": "workspace:*"
+  }
+}
+```
+
+## Package Information
+
+```json
+{
+  "name": "@budgetbee/ui",
+  "description": "Core ui package",
+  "type": "module"
+}
+```
+
+## Exports
+
+<CodeGroup>
+```typescript Components
+// UI components from shadcn/ui
+import { Button } from "@budgetbee/ui/core/button";
+import { Dialog } from "@budgetbee/ui/core/dialog";
+import { Card } from "@budgetbee/ui/core/card";
+import { Input } from "@budgetbee/ui/core/input";
+import { Select } from "@budgetbee/ui/core/select";
+```
+
+```typescript Hooks
+// Custom React hooks
+import { useSomeHook } from "@budgetbee/ui/hooks/use-some-hook";
+```
+
+```typescript Utilities
+// Utility functions
+import { cn } from "@budgetbee/ui/lib/utils";
+import { formatDate } from "@budgetbee/ui/lib/format";
+```
+
+```typescript Styles
+// Global CSS
+import "@budgetbee/ui/globals.css";
+
+// PostCSS config
+import postcssConfig from "@budgetbee/ui/postcss.config";
+```
+</CodeGroup>
+
+## Available Components
+
+BudgetBee UI includes 30+ production-ready components:
+
+<CardGroup cols={3}>
+  <Card title="Accordion" icon="chevron-down">
+    Collapsible content sections
+  </Card>
+  <Card title="Alert Dialog" icon="triangle-exclamation">
+    Modal dialog for important actions
+  </Card>
+  <Card title="Avatar" icon="user">
+    User profile images with fallback
+  </Card>
+  <Card title="Badge" icon="tag">
+    Small labels and tags
+  </Card>
+  <Card title="Breadcrumb" icon="ellipsis">
+    Navigation breadcrumbs
+  </Card>
+  <Card title="Button" icon="hand-pointer">
+    Interactive buttons with variants
+  </Card>
+  <Card title="Calendar" icon="calendar">
+    Date picker calendar
+  </Card>
+  <Card title="Card" icon="window">
+    Content container
+  </Card>
+  <Card title="Carousel" icon="images">
+    Image and content carousel
+  </Card>
+  <Card title="Chart" icon="chart-line">
+    Data visualization with Recharts
+  </Card>
+  <Card title="Checkbox" icon="square-check">
+    Checkboxes with tree support
+  </Card>
+  <Card title="Collapsible" icon="compress">
+    Expandable content areas
+  </Card>
+  <Card title="Command" icon="terminal">
+    Command palette / search
+  </Card>
+  <Card title="Context Menu" icon="bars">
+    Right-click context menu
+  </Card>
+  <Card title="Dialog" icon="message">
+    Modal dialogs
+  </Card>
+  <Card title="Drawer" icon="sidebar">
+    Side drawer panels
+  </Card>
+  <Card title="Dropdown Menu" icon="caret-down">
+    Dropdown menus
+  </Card>
+  <Card title="Empty State" icon="box-open">
+    Empty state placeholders
+  </Card>
+  <Card title="Input" icon="keyboard">
+    Text input fields
+  </Card>
+  <Card title="Label" icon="text">
+    Form labels
+  </Card>
+</CardGroup>
+
+And many more: `menubar`, `navigation-menu`, `popover`, `progress`, `radio-group`, `resizable`, `select`, `separator`, `sheet`, `skeleton`, `slider`, `sonner`, `switch`, `table`, `tabs`, `textarea`, `toast`, `toggle`, `tooltip`
+
+## Component Usage
+
+### Button
+
+```tsx
+import { Button } from "@budgetbee/ui/core/button";
+
+function MyComponent() {
+  return (
+    <div className="space-x-2">
+      <Button>Default</Button>
+      <Button variant="destructive">Delete</Button>
+      <Button variant="outline">Outline</Button>
+      <Button variant="ghost">Ghost</Button>
+      <Button variant="link">Link</Button>
+      <Button size="sm">Small</Button>
+      <Button size="lg">Large</Button>
+      <Button disabled>Disabled</Button>
+    </div>
+  );
+}
+```
+
+### Dialog
+
+```tsx
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@budgetbee/ui/core/dialog";
+import { Button } from "@budgetbee/ui/core/button";
+
+function MyComponent() {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button>Open Dialog</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Are you sure?</DialogTitle>
+          <DialogDescription>
+            This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline">Cancel</Button>
+          <Button variant="destructive">Delete</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+### Card
+
+```tsx
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@budgetbee/ui/core/card";
+import { Button } from "@budgetbee/ui/core/button";
+
+function MyComponent() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Budget Overview</CardTitle>
+        <CardDescription>Your spending this month</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p className="text-3xl font-bold">$2,450.00</p>
+      </CardContent>
+      <CardFooter>
+        <Button>View Details</Button>
+      </CardFooter>
+    </Card>
+  );
+}
+```
+
+### Input & Form
+
+```tsx
+import { Input } from "@budgetbee/ui/core/input";
+import { Label } from "@budgetbee/ui/core/label";
+import { Button } from "@budgetbee/ui/core/button";
+
+function MyComponent() {
+  return (
+    <form className="space-y-4">
+      <div>
+        <Label htmlFor="email">Email</Label>
+        <Input 
+          id="email" 
+          type="email" 
+          placeholder="you@example.com" 
+        />
+      </div>
+      <div>
+        <Label htmlFor="password">Password</Label>
+        <Input 
+          id="password" 
+          type="password" 
+        />
+      </div>
+      <Button type="submit">Sign In</Button>
+    </form>
+  );
+}
+```
+
+### Select
+
+```tsx
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@budgetbee/ui/core/select";
+
+function MyComponent() {
+  return (
+    <Select>
+      <SelectTrigger className="w-[180px]">
+        <SelectValue placeholder="Select a category" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="groceries">Groceries</SelectItem>
+        <SelectItem value="transport">Transport</SelectItem>
+        <SelectItem value="entertainment">Entertainment</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+}
+```
+
+### Calendar
+
+```tsx
+import { Calendar } from "@budgetbee/ui/core/calendar";
+import { useState } from "react";
+
+function MyComponent() {
+  const [date, setDate] = useState<Date | undefined>(new Date());
+
+  return (
+    <Calendar
+      mode="single"
+      selected={date}
+      onSelect={setDate}
+      className="rounded-md border"
+    />
+  );
+}
+```
+
+### Toast Notifications
+
+```tsx
+import { Toaster } from "@budgetbee/ui/core/sonner";
+import { toast } from "sonner";
+import { Button } from "@budgetbee/ui/core/button";
+
+function MyComponent() {
+  return (
+    <>
+      <Button onClick={() => toast.success('Transaction added!')}>
+        Add Transaction
+      </Button>
+      <Toaster />
+    </>
+  );
+}
+```
+
+## Charts
+
+BudgetBee UI includes chart components powered by [Recharts](https://recharts.org/):
+
+```tsx
+import { AreaChart } from "@budgetbee/ui/core/chart";
+
+function MyComponent() {
+  const data = [
+    { month: 'Jan', amount: 1200 },
+    { month: 'Feb', amount: 1500 },
+    { month: 'Mar', amount: 1800 },
+  ];
+
+  return (
+    <AreaChart 
+      data={data}
+      categories={['amount']}
+      index="month"
+      className="h-72"
+    />
+  );
+}
+```
+
+## Theming
+
+BudgetBee UI supports dark mode via `next-themes`:
+
+```tsx
+import { ThemeProvider } from "next-themes";
+
+function App({ children }: { children: React.ReactNode }) {
+  return (
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+    >
+      {children}
+    </ThemeProvider>
+  );
+}
+```
+
+### Theme Toggle
+
+```tsx
+import { useTheme } from "next-themes";
+import { Button } from "@budgetbee/ui/core/button";
+
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+
+  return (
+    <Button
+      variant="ghost"
+      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+    >
+      Toggle Theme
+    </Button>
+  );
+}
+```
+
+## Utility Functions
+
+### cn() - Class Name Merger
+
+Combine and merge Tailwind classes:
+
+```typescript
+import { cn } from "@budgetbee/ui/lib/utils";
+
+const className = cn(
+  "text-lg font-bold",
+  isActive && "text-blue-500",
+  isDisabled && "opacity-50 cursor-not-allowed"
+);
+```
+
+## Styling with Tailwind
+
+BudgetBee UI uses Tailwind CSS v4. Import the global styles in your app:
+
+```tsx
+import "@budgetbee/ui/globals.css";
+```
+
+### PostCSS Configuration
+
+Use the shared PostCSS config:
+
+```javascript
+import config from "@budgetbee/ui/postcss.config";
+
+export default config;
+```
+
+## Adding New Components
+
+To add a new shadcn/ui component:
+
+```bash
+cd packages/ui
+pnpm shadcn:add <component-name>
+```
+
+Example:
+
+```bash
+pnpm shadcn:add dropdown-menu
+```
+
+This will:
+1. Download the component from shadcn/ui
+2. Add it to `packages/ui/core/`
+3. Install any required dependencies
+
+<Note>
+Components are added to `packages/ui/core/` directory as specified in `components.json`
+</Note>
+
+## Dependencies
+
+Key dependencies used by `@budgetbee/ui`:
+
+```json
+{
+  "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
+    "date-fns": "^4.1.0",
+    "embla-carousel-react": "^8.6.0",
+    "lucide-react": "^0.475.0",
+    "next-themes": "^0.4.6",
+    "radix-ui": "^1.4.3",
+    "react-day-picker": "^9.11.1",
+    "recharts": "2.15.4",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.3.1"
+  }
+}
+```
+
+## Component Customization
+
+All components accept `className` prop for customization:
+
+```tsx
+import { Button } from "@budgetbee/ui/core/button";
+
+// Add custom classes
+<Button className="bg-gradient-to-r from-blue-500 to-purple-500">
+  Gradient Button
+</Button>
+
+// Override default styles
+<Button className="rounded-full px-8">
+  Custom Shape
+</Button>
+```
+
+## Accessibility
+
+All components follow accessibility best practices:
+
+- **Keyboard navigation** - Full keyboard support
+- **ARIA attributes** - Proper ARIA labels and roles
+- **Focus management** - Clear focus indicators
+- **Screen reader support** - Semantic HTML and labels
+
+<Note>
+Components are built on Radix UI primitives which handle most accessibility concerns automatically.
+</Note>
+
+## Best Practices
+
+<Card title="Use cn() utility" icon="merge">
+  Always use `cn()` to merge Tailwind classes safely
+</Card>
+
+<Card title="Import only what you need" icon="file-import">
+  Import specific components to keep bundle size small
+</Card>
+
+<Card title="Consistent spacing" icon="ruler">
+  Use Tailwind spacing scale consistently across components
+</Card>
+
+<Card title="Responsive design" icon="mobile">
+  Use responsive Tailwind classes for mobile-friendly UIs
+</Card>
+
+## Responsive Design
+
+Use Tailwind's responsive prefixes:
+
+```tsx
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+  <Card>...</Card>
+  <Card>...</Card>
+  <Card>...</Card>
+</div>
+```
+
+## Animation
+
+Components include built-in animations via `tw-animate-css`:
+
+```tsx
+import { Dialog } from "@budgetbee/ui/core/dialog";
+
+// Animations are automatic
+<Dialog>
+  {/* Content animates in/out */}
+</Dialog>
+```
+
+## Documentation
+
+For detailed component documentation, visit:
+
+- [shadcn/ui docs](https://ui.shadcn.com/)
+- [Radix UI docs](https://www.radix-ui.com/)
+- [Tailwind CSS docs](https://tailwindcss.com/)
+
+## Troubleshooting
+
+### Styles not applying
+
+Ensure you've imported the global CSS:
+
+```tsx
+import "@budgetbee/ui/globals.css";
+```
+
+### TypeScript errors
+
+Make sure you have the correct React types installed:
+
+```bash
+pnpm add -D @types/react @types/react-dom
+```
+
+### Dark mode not working
+
+Wrap your app with `ThemeProvider`:
+
+```tsx
+import { ThemeProvider } from "next-themes";
+
+function App({ children }) {
+  return (
+    <ThemeProvider attribute="class">
+      {children}
+    </ThemeProvider>
+  );
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Core Package" icon="box" href="/packages/core">
+    Explore authentication and database utilities
+  </Card>
+  <Card title="Billing Package" icon="credit-card" href="/packages/billing">
+    Learn about subscription management
+  </Card>
+</CardGroup>

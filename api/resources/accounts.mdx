@@ -1,0 +1,501 @@
+---
+title: 'Accounts'
+description: 'Manage financial accounts for grouping transactions'
+icon: 'building-columns'
+---
+
+## Overview
+
+Accounts in Budget Bee are used to group and organize transactions. They represent different financial accounts like bank accounts, credit cards, or cash accounts.
+
+<Note>
+  The accounts resource is planned for future implementation. This documentation describes the intended API structure.
+</Note>
+
+### Base URL
+
+```
+{NEXT_PUBLIC_PG_REST_URL}/accounts
+```
+
+### Authorization
+
+All account endpoints require authentication via JWT token:
+
+```bash
+Authorization: Bearer {JWT_TOKEN}
+```
+
+---
+
+## Account Schema
+
+<ResponseField name="id" type="uuid">
+  Unique account identifier
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Account name (e.g., "Chase Checking", "Amex Card")
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Detailed account description
+</ResponseField>
+
+<ResponseField name="type" type="string">
+  Account type: `checking`, `savings`, `credit_card`, `cash`, `investment`
+</ResponseField>
+
+<ResponseField name="currency" type="string">
+  Account currency code (default: "usd")
+</ResponseField>
+
+<ResponseField name="balance" type="numeric">
+  Current account balance
+</ResponseField>
+
+<ResponseField name="institution" type="string">
+  Financial institution name
+</ResponseField>
+
+<ResponseField name="account_number" type="string">
+  Masked account number (last 4 digits)
+</ResponseField>
+
+<ResponseField name="color" type="string">
+  Display color for the account (hex code)
+</ResponseField>
+
+<ResponseField name="icon" type="string">
+  Icon identifier for the account
+</ResponseField>
+
+<ResponseField name="user_id" type="string">
+  Owner user ID
+</ResponseField>
+
+<ResponseField name="organization_id" type="string">
+  Organization ID (null for personal accounts)
+</ResponseField>
+
+<ResponseField name="metadata" type="jsonb">
+  Additional metadata as JSON
+</ResponseField>
+
+<ResponseField name="created_at" type="timestamp">
+  When the record was created
+</ResponseField>
+
+<ResponseField name="updated_at" type="timestamp">
+  Last update timestamp
+</ResponseField>
+
+---
+
+## List Accounts
+
+Retrieve all accounts for the authenticated user or organization.
+
+```bash
+GET /accounts
+```
+
+### Query Parameters
+
+<ParamField query="select" type="string">
+  Columns to return. Default: `*` (all columns)
+</ParamField>
+
+<ParamField query="order" type="string">
+  Sort order. Example: `name.asc` or `balance.desc`
+</ParamField>
+
+<ParamField query="type" type="string">
+  Filter by account type
+</ParamField>
+
+### Request Example
+
+```bash
+curl -X GET "{NEXT_PUBLIC_PG_REST_URL}/accounts?order=name.asc" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Content-Type: application/json"
+```
+
+### Response Example
+
+```json
+[
+  {
+    "id": "acc_abc123",
+    "name": "Chase Checking",
+    "description": "Primary checking account",
+    "type": "checking",
+    "currency": "usd",
+    "balance": 5420.50,
+    "institution": "JPMorgan Chase",
+    "account_number": "****1234",
+    "color": "#0066CC",
+    "icon": "building-columns",
+    "user_id": "usr_abc123",
+    "organization_id": null,
+    "metadata": {
+      "routing_number": "021000021",
+      "account_opened": "2020-01-15"
+    },
+    "created_at": "2024-01-15T10:30:00Z",
+    "updated_at": "2024-01-20T14:22:00Z"
+  },
+  {
+    "id": "acc_def456",
+    "name": "Amex Blue Cash",
+    "description": "Cashback credit card",
+    "type": "credit_card",
+    "currency": "usd",
+    "balance": -850.25,
+    "institution": "American Express",
+    "account_number": "****5678",
+    "color": "#006FCF",
+    "icon": "credit-card",
+    "user_id": "usr_abc123",
+    "organization_id": null,
+    "metadata": {
+      "credit_limit": 10000,
+      "apr": 18.99
+    },
+    "created_at": "2024-01-15T10:35:00Z",
+    "updated_at": "2024-01-20T14:22:00Z"
+  }
+]
+```
+
+---
+
+## Get Account
+
+Retrieve a single account by ID.
+
+```bash
+GET /accounts?id=eq.{account_id}
+```
+
+### Request Example
+
+```bash
+curl -X GET "{NEXT_PUBLIC_PG_REST_URL}/accounts?id=eq.acc_abc123" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Accept: application/vnd.pgrst.object+json"
+```
+
+### Response Example
+
+```json
+{
+  "id": "acc_abc123",
+  "name": "Chase Checking",
+  "type": "checking",
+  "balance": 5420.50,
+  "currency": "usd",
+  "institution": "JPMorgan Chase"
+}
+```
+
+---
+
+## Create Account
+
+Create a new financial account.
+
+```bash
+POST /accounts
+```
+
+### Request Body
+
+<ParamField body="name" type="string" required>
+  Account name
+</ParamField>
+
+<ParamField body="type" type="string" required>
+  Account type: `checking`, `savings`, `credit_card`, `cash`, `investment`
+</ParamField>
+
+<ParamField body="currency" type="string">
+  Currency code (default: "usd")
+</ParamField>
+
+<ParamField body="balance" type="numeric">
+  Initial balance (default: 0)
+</ParamField>
+
+<ParamField body="description" type="string">
+  Account description
+</ParamField>
+
+<ParamField body="institution" type="string">
+  Financial institution name
+</ParamField>
+
+<ParamField body="account_number" type="string">
+  Masked account number
+</ParamField>
+
+<ParamField body="color" type="string">
+  Display color (hex code)
+</ParamField>
+
+<ParamField body="icon" type="string">
+  Icon identifier
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Additional metadata
+</ParamField>
+
+### Request Example
+
+```bash
+curl -X POST "{NEXT_PUBLIC_PG_REST_URL}/accounts" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: return=representation" \
+  -d '{
+    "name": "Business Checking",
+    "type": "checking",
+    "currency": "usd",
+    "balance": 10000.00,
+    "description": "Main business account",
+    "institution": "Bank of America",
+    "account_number": "****9012",
+    "color": "#CC0000",
+    "icon": "briefcase",
+    "metadata": {
+      "routing_number": "026009593",
+      "account_type": "business"
+    }
+  }'
+```
+
+### Response Example
+
+```json
+{
+  "id": "acc_ghi789",
+  "name": "Business Checking",
+  "type": "checking",
+  "currency": "usd",
+  "balance": 10000.00,
+  "description": "Main business account",
+  "institution": "Bank of America",
+  "account_number": "****9012",
+  "color": "#CC0000",
+  "icon": "briefcase",
+  "user_id": "usr_abc123",
+  "organization_id": "org_456",
+  "metadata": {
+    "routing_number": "026009593",
+    "account_type": "business"
+  },
+  "created_at": "2024-01-20T15:45:00Z",
+  "updated_at": "2024-01-20T15:45:00Z"
+}
+```
+
+---
+
+## Update Account
+
+Update an existing account.
+
+```bash
+PATCH /accounts?id=eq.{account_id}
+```
+
+### Request Example
+
+```bash
+curl -X PATCH "{NEXT_PUBLIC_PG_REST_URL}/accounts?id=eq.acc_abc123" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: return=representation" \
+  -d '{
+    "name": "Chase Primary Checking",
+    "balance": 5650.75,
+    "color": "#003D6F"
+  }'
+```
+
+### Response Example
+
+```json
+{
+  "id": "acc_abc123",
+  "name": "Chase Primary Checking",
+  "balance": 5650.75,
+  "color": "#003D6F",
+  "updated_at": "2024-01-21T09:15:00Z"
+}
+```
+
+---
+
+## Delete Account
+
+Delete an account permanently.
+
+```bash
+DELETE /accounts?id=eq.{account_id}
+```
+
+### Request Example
+
+```bash
+curl -X DELETE "{NEXT_PUBLIC_PG_REST_URL}/accounts?id=eq.acc_abc123" \
+  -H "Authorization: Bearer {JWT_TOKEN}"
+```
+
+### Response
+
+Returns `204 No Content` on successful deletion.
+
+<Warning>
+  Consider the impact on transactions linked to this account. You may want to implement cascade delete or prevent deletion of accounts with transactions.
+</Warning>
+
+---
+
+## Account Types
+
+### Checking Account
+
+```json
+{
+  "type": "checking",
+  "icon": "building-columns",
+  "typical_balance": "positive"
+}
+```
+
+### Savings Account
+
+```json
+{
+  "type": "savings",
+  "icon": "piggy-bank",
+  "typical_balance": "positive"
+}
+```
+
+### Credit Card
+
+```json
+{
+  "type": "credit_card",
+  "icon": "credit-card",
+  "typical_balance": "negative"
+}
+```
+
+### Cash
+
+```json
+{
+  "type": "cash",
+  "icon": "money-bill",
+  "typical_balance": "positive"
+}
+```
+
+### Investment
+
+```json
+{
+  "type": "investment",
+  "icon": "chart-line",
+  "typical_balance": "positive"
+}
+```
+
+---
+
+## Balance Calculation
+
+### Automatic Balance Updates
+
+When linking accounts to transactions, balances can be automatically calculated:
+
+```sql
+-- Calculate account balance from transactions
+SELECT 
+  account_id,
+  SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END) as balance
+FROM transactions
+WHERE account_id = 'acc_abc123'
+GROUP BY account_id;
+```
+
+### Manual Balance Adjustments
+
+You can also manually adjust balances:
+
+```bash
+PATCH /accounts?id=eq.acc_abc123
+```
+
+```json
+{
+  "balance": 6000.00,
+  "metadata": {
+    "last_reconciled": "2024-01-20",
+    "reconciliation_note": "Manual adjustment after bank statement"
+  }
+}
+```
+
+---
+
+## Access Control
+
+Account access follows the same role-based permissions as other resources:
+
+<Card title="Owner, Admin, Editor" icon="check">
+  Full access: list, get, create, update, delete
+</Card>
+
+<Card title="Viewer" icon="eye">
+  Read-only: list, get
+</Card>
+
+---
+
+## Best Practices
+
+### Security
+
+1. **Never store full account numbers** - Always mask sensitive data
+2. **Encrypt sensitive metadata** - Use encryption for routing numbers and other sensitive info
+3. **Limit access** - Use organization roles to control who can view/edit accounts
+
+### Organization
+
+1. **Use consistent naming** - Follow a naming convention for accounts
+2. **Color coding** - Assign distinct colors to different account types
+3. **Regular reconciliation** - Periodically verify balances match bank statements
+
+### Metadata Usage
+
+Store additional information in the metadata field:
+
+```json
+{
+  "metadata": {
+    "routing_number": "021000021",
+    "account_opened": "2020-01-15",
+    "credit_limit": 10000,
+    "apr": 18.99,
+    "rewards_program": "cashback",
+    "last_reconciled": "2024-01-15",
+    "plaid_item_id": "item_xyz"
+  }
+}
+```

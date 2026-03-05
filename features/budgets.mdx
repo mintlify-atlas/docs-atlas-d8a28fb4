@@ -1,0 +1,335 @@
+---
+title: Budgets
+description: Create and track budgets to manage spending
+---
+
+# Budget Management
+
+Budget Bee's budgeting feature helps you set spending limits and track your progress against financial goals.
+
+<Warning>
+  The budgets feature appears to be in development. Some functionality may be incomplete or unavailable in the current version.
+</Warning>
+
+## Overview
+
+Budgets in Budget Bee allow you to:
+- Set spending limits for specific categories
+- Track actual spending vs. budgeted amounts
+- Receive alerts when approaching budget limits
+- View budget performance over time
+- Create monthly, quarterly, or annual budgets
+
+## Accessing Budgets
+
+Navigate to the budgets page from the sidebar:
+
+```tsx
+// From apps/web/app/(app)/budgets/page.tsx
+export default function BudgetsPage() {
+  // Budget management interface
+  return (
+    <div>
+      <h1>Budgets</h1>
+      {/* Budget creation and management UI */}
+    </div>
+  );
+}
+```
+
+## Creating Budgets
+
+<Steps>
+  <Step title="Navigate to Budgets">
+    Click **Budgets** in the sidebar navigation.
+  </Step>
+  
+  <Step title="Create New Budget">
+    Click **Create Budget** to start setting up a new budget.
+  </Step>
+  
+  <Step title="Configure Budget">
+    Set your budget parameters:
+    
+    <ParamField path="name" type="string" required>
+      Budget name (e.g., "Monthly Grocery Budget", "Q1 Marketing Budget")
+    </ParamField>
+    
+    <ParamField path="amount" type="number" required>
+      Total budget amount
+    </ParamField>
+    
+    <ParamField path="period" type="enum" required>
+      Budget period:
+      - `monthly`: Resets each month
+      - `quarterly`: Resets every 3 months
+      - `yearly`: Annual budget
+      - `custom`: Define custom date range
+    </ParamField>
+    
+    <ParamField path="category_id" type="uuid">
+      Link budget to a specific category to automatically track spending
+    </ParamField>
+  </Step>
+  
+  <Step title="Set Alerts">
+    Configure budget alerts:
+    - Warning threshold (e.g., 75% of budget)
+    - Critical threshold (e.g., 90% of budget)
+    - Exceeded budget notification
+  </Step>
+  
+  <Step title="Save Budget">
+    Click **Save** to activate your budget.
+  </Step>
+</Steps>
+
+## Budget Types
+
+<AccordionGroup>
+  <Accordion title="Category Budgets">
+    Set spending limits for specific categories like:
+    - Food & Dining
+    - Entertainment
+    - Transportation
+    - Utilities
+    
+    Category budgets automatically track all transactions in that category.
+  </Accordion>
+  
+  <Accordion title="Overall Budgets">
+    Set total spending limits across all categories:
+    - Monthly spending limit
+    - Discretionary spending budget
+    - Total business expenses
+  </Accordion>
+  
+  <Accordion title="Project Budgets">
+    Track spending for specific projects or goals:
+    - Home renovation
+    - Vacation planning
+    - Event budgets
+  </Accordion>
+</AccordionGroup>
+
+## Tracking Budget Performance
+
+### Budget Overview
+
+View your budget status at a glance:
+
+<CardGroup cols={2}>
+  <Card title="Spent vs. Budgeted" icon="chart-pie">
+    Visual representation of how much you've spent compared to your budget.
+  </Card>
+  
+  <Card title="Remaining Balance" icon="dollar-sign">
+    Amount remaining in each budget category.
+  </Card>
+  
+  <Card title="Daily Average" icon="calendar-day">
+    Average daily spending to stay within budget.
+  </Card>
+  
+  <Card title="Projected Spending" icon="chart-line">
+    Estimated total spending based on current pace.
+  </Card>
+</CardGroup>
+
+### Budget Alerts
+
+Budget Bee can notify you when:
+- You reach warning thresholds (e.g., 75% spent)
+- You're close to exceeding your budget (e.g., 90% spent)
+- You exceed your budget
+- A new budget period begins
+
+<Tip>
+  Configure alert thresholds based on your spending patterns to avoid surprises.
+</Tip>
+
+## Budget Periods
+
+Budgets can be configured for different time periods:
+
+### Monthly Budgets
+
+Most common for ongoing expense categories:
+- Resets on the 1st of each month
+- Track month-over-month spending trends
+- Easy to compare against monthly income
+
+### Quarterly Budgets
+
+Useful for business planning:
+- Aligns with business quarters (Q1, Q2, Q3, Q4)
+- Good for seasonal spending patterns
+- Helps with quarterly financial reviews
+
+### Annual Budgets
+
+For long-term planning:
+- Yearly spending limits
+- Track progress throughout the year
+- Compare year-over-year spending
+
+### Custom Periods
+
+Define your own budget timeframes:
+- Project-specific budgets
+- Event budgets (weddings, conferences)
+- Academic year budgets
+- Fiscal year budgets
+
+## Integration with Transactions
+
+Budgets automatically track spending from transactions:
+
+```typescript
+// Pseudo-code for budget tracking
+const calculateBudgetUsage = (budget, transactions) => {
+  const relevantTransactions = transactions.filter(t => 
+    t.category_id === budget.category_id &&
+    t.transaction_date >= budget.period_start &&
+    t.transaction_date <= budget.period_end
+  );
+  
+  const spent = relevantTransactions.reduce((sum, t) => 
+    sum + Math.abs(t.amount), 0
+  );
+  
+  return {
+    budgeted: budget.amount,
+    spent,
+    remaining: budget.amount - spent,
+    percentage: (spent / budget.amount) * 100
+  };
+};
+```
+
+## Budget Reports
+
+Generate reports to analyze budget performance:
+
+### Available Reports
+
+- **Budget vs. Actual**: Compare planned vs. actual spending
+- **Variance Report**: Identify over/under budget categories
+- **Trend Analysis**: Track budget performance over time
+- **Category Breakdown**: See which categories exceed budgets most often
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Start Realistic" icon="balance-scale">
+    Base initial budgets on past spending patterns, not aspirational goals.
+  </Card>
+  
+  <Card title="Review Regularly" icon="calendar-check">
+    Check budget status weekly to stay on track.
+  </Card>
+  
+  <Card title="Adjust as Needed" icon="arrows-rotate">
+    Update budgets when circumstances change (income changes, new expenses).
+  </Card>
+  
+  <Card title="Use Categories" icon="tags">
+    Link budgets to categories for automatic tracking.
+  </Card>
+</CardGroup>
+
+## Budget Categories
+
+Common budget categories to consider:
+
+<Accordion title="Essential Expenses">
+  - Housing (rent/mortgage)
+  - Utilities (electricity, water, internet)
+  - Groceries
+  - Transportation
+  - Insurance
+  - Minimum debt payments
+</Accordion>
+
+<Accordion title="Discretionary Spending">
+  - Dining out
+  - Entertainment
+  - Shopping
+  - Hobbies
+  - Travel
+  - Subscriptions
+</Accordion>
+
+<Accordion title="Savings & Goals">
+  - Emergency fund
+  - Retirement contributions
+  - Investment account
+  - Vacation fund
+  - Large purchase savings
+</Accordion>
+
+## Budget Strategies
+
+### 50/30/20 Rule
+
+Allocate your income:
+- **50%** to needs (housing, food, utilities)
+- **30%** to wants (entertainment, dining out)
+- **20%** to savings and debt repayment
+
+### Zero-Based Budget
+
+Assign every dollar a job:
+- All income is allocated to specific budget categories
+- Income minus expenses equals zero
+- Ensures intentional spending
+
+### Envelope Method
+
+Digital version of cash envelopes:
+- Set fixed amounts for each category
+- Once spent, no more spending in that category
+- Great for discretionary categories
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Budget not tracking transactions">
+    Verify:
+    - Transactions are in the correct category
+    - Transaction dates fall within the budget period
+    - Budget is active (not paused or deleted)
+    - Category is correctly linked to the budget
+  </Accordion>
+  
+  <Accordion title="Incorrect budget calculations">
+    Check:
+    - All transactions are properly categorized
+    - No duplicate transactions
+    - Budget period dates are correct
+    - Currency conversions if using multiple currencies
+  </Accordion>
+  
+  <Accordion title="Not receiving budget alerts">
+    Ensure:
+    - Email notifications are enabled
+    - Alert thresholds are configured
+    - Email address is verified
+    - Check spam folder for notifications
+  </Accordion>
+</AccordionGroup>
+
+## Future Enhancements
+
+The budgets feature is under active development. Planned enhancements include:
+
+- Automatic budget suggestions based on spending history
+- Budget templates for common scenarios
+- Rollover budgets (unused amount carries to next period)
+- Budget sharing within organizations
+- Mobile app budget notifications
+- Integration with bank accounts for real-time tracking
+
+<Note>
+  Check the Budget Bee release notes for updates on budget feature availability.
+</Note>

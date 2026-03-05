@@ -1,0 +1,480 @@
+---
+title: Dashboards
+description: Create custom data visualizations with drag-and-drop widgets
+---
+
+# Custom Dashboards
+
+Budget Bee's dashboard feature allows you to create personalized views of your financial data with customizable widgets, charts, and metrics.
+
+## Overview
+
+Dashboards provide:
+- **Real-time data visualization** with interactive charts
+- **Drag-and-drop widget arrangement** for custom layouts
+- **Multiple dashboard views** for different purposes
+- **Responsive design** that works on all screen sizes
+- **Sharable dashboards** within organizations
+
+## Dashboard Management
+
+Access your dashboards from the sidebar:
+
+```tsx
+// From apps/web/app/(app)/dashboards/page.tsx
+export default function DashboardsPage() {
+  const { data: dashboards, isLoading } = useDashboardViews();
+  const mutation = useDashboardMutation();
+
+  return (
+    <div className="p-4">
+      {dashboards?.length === 0 ? (
+        <div className="text-center py-12">
+          <LayoutDashboard className="mx-auto mb-2 size-10 opacity-40" />
+          <p>No dashboards yet. Create one to get started.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {dashboards.map(d => (
+            <DashboardCard key={d.id} dashboard={d} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+## Creating Dashboards
+
+<Steps>
+  <Step title="Navigate to Dashboards">
+    Click **Dashboards** in the sidebar to view your dashboards.
+  </Step>
+  
+  <Step title="Create New Dashboard">
+    Click the **+** or **Create Dashboard** button.
+    
+    <ParamField path="name" type="string" required>
+      Dashboard name (e.g., "Monthly Overview", "Q4 Analysis")
+    </ParamField>
+    
+    <ParamField path="is_default" type="boolean" default={false}>
+      Set as default dashboard (loads automatically)
+    </ParamField>
+  </Step>
+  
+  <Step title="Add Widgets">
+    Start adding widgets to visualize your data.
+  </Step>
+</Steps>
+
+## Widget Types
+
+Budget Bee supports four types of widgets:
+
+<CardGroup cols={2}>
+  <Card title="Number Cards" icon="hashtag">
+    Display single metrics like total income, expenses, or balance.
+  </Card>
+  
+  <Card title="Bar Charts" icon="chart-column">
+    Compare data across categories or time periods.
+  </Card>
+  
+  <Card title="Line Charts" icon="chart-line">
+    Track trends over time, perfect for income/expense tracking.
+  </Card>
+  
+  <Card title="Donut Charts" icon="chart-pie">
+    Show proportional breakdowns by category.
+  </Card>
+</CardGroup>
+
+### Number Card Widget
+
+Display single numerical values:
+
+```tsx
+// From apps/web/components/dashboard/widget-charts/widget-number-card.tsx
+export function WidgetNumberCard({ config, data }) {
+  const value = data?.aggregate_result || 0;
+  
+  const formatted = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+  }).format(value);
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full">
+      <div className="text-4xl font-bold">{formatted}</div>
+      <div className="text-sm text-muted-foreground mt-2">
+        {config.title}
+      </div>
+    </div>
+  );
+}
+```
+
+**Use cases:**
+- Total income this month
+- Total expenses this year
+- Current balance
+- Number of transactions
+- Average transaction amount
+
+### Bar Chart Widget
+
+Visualize data as vertical or horizontal bars:
+
+**Use cases:**
+- Monthly income vs. expenses
+- Spending by category
+- Year-over-year comparison
+- Quarterly revenue breakdown
+
+**Configuration options:**
+- X-axis: Time period or category
+- Y-axis: Amount
+- Grouping: By category, status, or custom field
+- Color scheme: Single or multi-color
+
+### Line Chart Widget
+
+Track trends over time:
+
+**Use cases:**
+- Income trend over 12 months
+- Expense trend by week
+- Net worth growth
+- Category spending over time
+
+**Configuration options:**
+- Time range: Day, week, month, quarter, year
+- Multiple series: Compare different metrics
+- Smoothing: Apply curve smoothing
+- Reference lines: Add target or budget lines
+
+### Donut Chart Widget
+
+Show proportional breakdowns:
+
+```tsx
+// Donut chart with category breakdown
+export function WidgetDonutChart({ config, data }) {
+  const chartData = data.map(item => ({
+    name: item.metric_value,
+    value: item.aggregate_result,
+  }));
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <PieChart>
+        <Pie
+          data={chartData}
+          dataKey="value"
+          nameKey="name"
+          innerRadius="60%"
+          outerRadius="80%"
+        >
+          {chartData.map((entry, index) => (
+            <Cell key={index} fill={COLORS[index % COLORS.length]} />
+          ))}
+        </Pie>
+        <Tooltip formatter={(value) => 
+          new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "USD",
+          }).format(value)
+        } />
+      </PieChart>
+    </ResponsiveContainer>
+  );
+}
+```
+
+**Use cases:**
+- Expenses by category
+- Income sources
+- Budget allocation
+- Time spent per category
+
+## Adding Widgets
+
+<Steps>
+  <Step title="Open Widget Settings">
+    Click **Add Widget** or **+** button on your dashboard.
+  </Step>
+  
+  <Step title="Select Widget Type">
+    Choose from Number Card, Bar Chart, Line Chart, or Donut Chart.
+  </Step>
+  
+  <Step title="Configure Widget">
+    Set widget parameters:
+    
+    <ParamField path="title" type="string">
+      Widget title displayed in the header
+    </ParamField>
+    
+    <ParamField path="metric" type="string">
+      What to measure: category, status, currency, etc.
+    </ParamField>
+    
+    <ParamField path="aggregation" type="enum">
+      How to aggregate data:
+      - `sum`: Total amount
+      - `avg`: Average amount
+      - `count`: Number of transactions
+      - `min`: Minimum value
+      - `max`: Maximum value
+    </ParamField>
+    
+    <ParamField path="time_interval" type="enum">
+      Time grouping:
+      - `day`: Daily data
+      - `week`: Weekly aggregation
+      - `month`: Monthly summary
+      - `quarter`: Quarterly view
+      - `year`: Yearly totals
+    </ParamField>
+  </Step>
+  
+  <Step title="Position Widget">
+    Drag the widget to your desired position on the grid.
+  </Step>
+</Steps>
+
+## Dashboard Grid
+
+Dashboards use a responsive grid layout:
+
+```tsx
+// From apps/web/components/dashboard/dashboard-grid.tsx
+import GridLayout from "react-grid-layout";
+
+export function DashboardGrid({ widgets, onLayoutChange }) {
+  return (
+    <GridLayout
+      className="layout"
+      cols={12}
+      rowHeight={100}
+      width={1200}
+      onLayoutChange={onLayoutChange}
+      draggableHandle=".drag-handle"
+    >
+      {widgets.map(widget => (
+        <div key={widget.id} data-grid={widget.layout}>
+          <WidgetRenderer widget={widget} />
+        </div>
+      ))}
+    </GridLayout>
+  );
+}
+```
+
+### Grid Features
+
+<CardGroup cols={2}>
+  <Card title="Drag and Drop" icon="arrows-up-down-left-right">
+    Rearrange widgets by dragging them to new positions.
+  </Card>
+  
+  <Card title="Resize Widgets" icon="expand">
+    Drag widget corners to resize and fit your layout.
+  </Card>
+  
+  <Card title="Responsive" icon="mobile-screen">
+    Grid automatically adjusts for mobile and tablet screens.
+  </Card>
+  
+  <Card title="Auto-save" icon="floppy-disk">
+    Layout changes are automatically saved.
+  </Card>
+</CardGroup>
+
+## Data Aggregation
+
+Widgets use PostgreSQL functions for efficient data aggregation:
+
+```sql
+-- From packages/core/migrations/migration_2026_02_01_dashboard_views.sql
+CREATE OR REPLACE FUNCTION get_transaction_aggregate(
+  group_by_metric TEXT,
+  time_interval TEXT,
+  agg_function TEXT
+)
+RETURNS TABLE (
+  period TIMESTAMP,
+  metric_value TEXT,
+  aggregate_result NUMERIC
+) AS $$
+BEGIN
+  IF agg_function NOT IN ('sum', 'avg', 'count', 'min', 'max') THEN
+    RAISE EXCEPTION 'Invalid aggregate';
+  END IF;
+
+  RETURN QUERY EXECUTE format(
+    'SELECT
+       date_trunc(%s, transaction_date) AS period,
+       CAST(%s AS TEXT) AS metric_value,
+       %s(amount)::NUMERIC AS aggregate_result
+     FROM transactions
+     GROUP BY 1, 2
+     ORDER BY 1 DESC, 2 ASC',
+    quote_literal(time_interval),
+    quote_ident(group_by_metric),
+    quote_ident(agg_function)
+  );
+END;
+$$ LANGUAGE plpgsql;
+```
+
+This enables:
+- Fast data aggregation on large datasets
+- Multiple grouping dimensions
+- Time-based rollups
+- Security through parameterized queries
+
+## Editing Dashboards
+
+### Renaming Dashboards
+
+<Steps>
+  <Step title="Open Dashboard Settings">
+    Click the settings icon on the dashboard.
+  </Step>
+  
+  <Step title="Update Name">
+    Enter the new dashboard name.
+  </Step>
+  
+  <Step title="Save">
+    Click **Save** to update the dashboard name.
+  </Step>
+</Steps>
+
+### Editing Widgets
+
+<Steps>
+  <Step title="Click Widget Settings">
+    Click the gear icon on any widget.
+  </Step>
+  
+  <Step title="Modify Configuration">
+    Update widget settings:
+    - Change the chart type
+    - Adjust time range
+    - Modify aggregation function
+    - Update colors or styling
+  </Step>
+  
+  <Step title="Apply Changes">
+    Click **Save** to update the widget.
+  </Step>
+</Steps>
+
+### Removing Widgets
+
+1. Click the × icon on the widget
+2. Confirm deletion
+3. The widget is removed from the dashboard
+
+<Warning>
+  Removing a widget cannot be undone. You'll need to recreate it if needed.
+</Warning>
+
+## Sharing Dashboards
+
+In organization accounts, dashboards can be shared:
+
+- **Personal dashboards**: Visible only to you
+- **Organization dashboards**: Visible to all organization members
+- **Role-based access**: Control who can edit vs. view dashboards
+
+## Database Schema
+
+Dashboards are stored with this structure:
+
+```sql
+CREATE TABLE dashboard_views (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL DEFAULT 'My Dashboard',
+  user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+  organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+  widgets JSONB NOT NULL DEFAULT '[]'::jsonb,
+  is_default BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT current_timestamp,
+  updated_at TIMESTAMP DEFAULT current_timestamp
+);
+```
+
+**Widgets are stored as JSONB:**
+
+```json
+{
+  "id": "widget-uuid",
+  "type": "bar-chart",
+  "title": "Monthly Expenses",
+  "config": {
+    "metric": "category",
+    "aggregation": "sum",
+    "time_interval": "month"
+  },
+  "layout": {
+    "x": 0,
+    "y": 0,
+    "w": 6,
+    "h": 4
+  }
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Start Simple" icon="seedling">
+    Begin with a few key metrics, then expand as needed.
+  </Card>
+  
+  <Card title="Logical Grouping" icon="layer-group">
+    Group related widgets together for easier scanning.
+  </Card>
+  
+  <Card title="Consistent Time Ranges" icon="clock">
+    Use consistent time periods across widgets for accurate comparison.
+  </Card>
+  
+  <Card title="Color Coding" icon="palette">
+    Use colors consistently (e.g., red for expenses, green for income).
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Widget showing no data">
+    Check:
+    - You have transactions in the selected time range
+    - Filters aren't excluding all data
+    - The metric/category exists
+    - You have permission to view the data
+  </Accordion>
+  
+  <Accordion title="Dashboard layout not saving">
+    Ensure:
+    - You have edit permissions
+    - Your browser allows cookies
+    - You're not in incognito/private mode
+    - The dashboard isn't marked as read-only
+  </Accordion>
+  
+  <Accordion title="Slow dashboard loading">
+    Try:
+    - Reducing the number of widgets
+    - Using smaller time ranges
+    - Simplifying complex aggregations
+    - Clearing browser cache
+  </Accordion>
+</AccordionGroup>

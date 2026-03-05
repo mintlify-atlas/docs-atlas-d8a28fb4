@@ -1,0 +1,348 @@
+---
+title: 'Project Structure'
+description: 'Understanding the BudgetBee monorepo architecture'
+icon: 'folder-tree'
+---
+
+## Overview
+
+BudgetBee is organized as a **monorepo** using **Turborepo** for build orchestration and **pnpm workspaces** for dependency management. This structure enables code sharing across multiple applications while maintaining clear boundaries between packages.
+
+## Workspace Configuration
+
+The monorepo is defined in `pnpm-workspace.yaml`:
+
+```yaml
+packages:
+    - "apps/*"
+    - "packages/*"
+```
+
+## Directory Structure
+
+```
+budgetbee/
+├── apps/
+│   ├── currency-api/     # Currency conversion API
+│   ├── docs/             # Documentation site (Mintlify)
+│   ├── site/             # Landing page
+│   └── web/              # Main application
+├── packages/
+│   ├── billing/          # Polar billing integration
+│   ├── core/             # Auth, database, feature flags
+│   ├── email/            # Email utilities (Resend)
+│   ├── fz-datetime/      # Datetime utilities
+│   ├── tsconfig/         # Shared TypeScript configs
+│   └── ui/               # Shared UI components
+├── infra/
+│   └── docker-compose.yml  # PostgreSQL + PostgREST
+├── scripts/              # Setup and utility scripts
+├── .env                  # Environment variables (gitignored)
+├── Makefile              # Development commands
+├── package.json          # Root package configuration
+├── pnpm-workspace.yaml   # Workspace definition
+└── turbo.json            # Turborepo configuration
+```
+
+## Applications (`apps/`)
+
+### Main Application (`web`)
+
+The primary BudgetBee application built with Next.js.
+
+**Local URL:** `http://localhost:3001`
+
+**Key Features:**
+- User authentication and authorization
+- Budget management and tracking
+- Transaction recording
+- Organization management
+- Subscription billing
+
+### Landing Page (`site`)
+
+Marketing website built with Next.js.
+
+**Local URL:** `http://localhost:3000`
+
+**Features:**
+- Product information
+- Pricing plans
+- Authentication endpoints (`/api/auth/*`)
+- JWKS endpoint for JWT verification
+
+### Documentation (`docs`)
+
+This documentation site built with Mintlify.
+
+**Local URL:** `http://localhost:3002`
+
+### Currency API (`currency-api`)
+
+Microservice for currency conversion rates.
+
+## Packages (`packages/`)
+
+### Core (`@budgetbee/core`)
+
+<Card title="@budgetbee/core" icon="box">
+  Authentication, database access, and core business logic
+</Card>
+
+**Key Exports:**
+
+```typescript
+// Authentication (server-side)
+import { auth } from "@budgetbee/core/auth";
+
+// Authentication (client-side)
+import { authClient } from "@budgetbee/core/auth-client";
+
+// Database access
+import { db, getDb } from "@budgetbee/core/db";
+import { getAuthAdminClient } from "@budgetbee/core/db-pool";
+
+// Feature flags
+import { getFeatureFlag } from "@budgetbee/core/feature-flags";
+
+// UI components
+import { SomeComponent } from "@budgetbee/core/ui/some-component";
+```
+
+**Technologies:**
+- Better Auth for authentication
+- Polar Better Auth plugin for billing
+- PostgREST client for database access
+- PostgreSQL for data storage
+- Redis for caching
+
+[Learn more →](/packages/core)
+
+### UI (`@budgetbee/ui`)
+
+<Card title="@budgetbee/ui" icon="palette">
+  Shared React components built with shadcn/ui
+</Card>
+
+**Key Exports:**
+
+```typescript
+// UI components
+import { Button } from "@budgetbee/ui/core/button";
+import { Dialog } from "@budgetbee/ui/core/dialog";
+import { Card } from "@budgetbee/ui/core/card";
+
+// Hooks
+import { useSomeHook } from "@budgetbee/ui/hooks/use-some-hook";
+
+// Utilities
+import { cn } from "@budgetbee/ui/lib/utils";
+
+// Styles
+import "@budgetbee/ui/globals.css";
+```
+
+**Component Library:**
+- 30+ shadcn/ui components
+- Radix UI primitives
+- Tailwind CSS styling
+- Custom theme support
+- Chart components (Recharts)
+
+[Learn more →](/packages/ui)
+
+### Billing (`@budgetbee/billing`)
+
+<Card title="@budgetbee/billing" icon="credit-card">
+  Polar integration for subscription management
+</Card>
+
+**Key Exports:**
+
+```typescript
+import { polar } from "@budgetbee/billing";
+import { 
+  isPro, 
+  isTeams, 
+  isProOrHigher,
+  isTeamsOrHigher 
+} from "@budgetbee/billing";
+```
+
+**Features:**
+- Polar SDK integration
+- Subscription tier helpers
+- Webhook handling
+- Usage tracking
+
+[Learn more →](/packages/billing)
+
+### Email (`@budgetbee/email`)
+
+Email templates and Resend integration for transactional emails.
+
+### Datetime (`@budgetbee/fz-datetime`)
+
+Date and time utilities for timezone handling and formatting.
+
+### TypeScript Config (`@budgetbee/tsconfig`)
+
+Shared TypeScript configuration presets:
+- `base.json` - Base configuration
+- `nextjs.json` - Next.js specific config
+- `react-library.json` - React library config
+
+## Turborepo Configuration
+
+BudgetBee uses Turborepo for efficient builds and caching:
+
+```json
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**"]
+    },
+    "dev": {
+      "persistent": true,
+      "cache": false
+    }
+  }
+}
+```
+
+**Key Features:**
+- Parallel task execution
+- Intelligent caching
+- Dependency graph awareness
+- Task orchestration
+
+## Package Manager
+
+BudgetBee uses **pnpm** for fast, disk-efficient dependency management:
+
+```json
+{
+  "packageManager": "pnpm@10.25.0"
+}
+```
+
+**Benefits:**
+- Faster installs than npm/yarn
+- Efficient disk usage with content-addressable storage
+- Strict dependency resolution
+- Better monorepo support
+
+## Running Commands
+
+### Run in all workspaces
+
+```bash
+pnpm -r <command>
+```
+
+### Run in specific workspace
+
+```bash
+pnpm --filter @budgetbee/core <command>
+```
+
+### Run with Turborepo
+
+```bash
+pnpm turbo <task>
+```
+
+## Infrastructure
+
+### Docker Compose
+
+The `infra/` directory contains Docker configuration for:
+
+- **PostgreSQL** - Primary database
+- **PostgREST** - REST API for PostgreSQL
+
+```bash
+cd infra
+docker compose up -d
+```
+
+### Database Migrations
+
+Migrations are stored in `packages/core/migrations/` and run in order:
+
+1. `better-auth-migrations.sql` - Auth tables
+2. `init.sql` - Initial schema
+3. `migration_YYYY_MM_DD_*.sql` - Dated migrations
+
+## Adding New Packages
+
+To add a new shared package:
+
+<Steps>
+  <Step title="Create package directory">
+    ```bash
+    mkdir packages/my-package
+    cd packages/my-package
+    ```
+  </Step>
+
+  <Step title="Initialize package.json">
+    ```json
+    {
+      "name": "@budgetbee/my-package",
+      "version": "1.0.0",
+      "type": "module",
+      "exports": {
+        "./": "./index.ts"
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Add dependencies">
+    ```bash
+    pnpm add <package> --filter @budgetbee/my-package
+    ```
+  </Step>
+
+  <Step title="Use in other packages">
+    ```json
+    {
+      "dependencies": {
+        "@budgetbee/my-package": "workspace:*"
+      }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Best Practices
+
+<Note>
+**Keep packages focused** - Each package should have a single, well-defined responsibility.
+</Note>
+
+<Note>
+**Use workspace protocol** - Always use `workspace:*` for internal dependencies.
+</Note>
+
+<Note>
+**Shared configs** - Use `@budgetbee/tsconfig` for TypeScript configuration.
+</Note>
+
+<Warning>
+**Avoid circular dependencies** - Keep the dependency graph acyclic.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Core Package" icon="box" href="/packages/core">
+    Deep dive into authentication and database access
+  </Card>
+  <Card title="UI Package" icon="palette" href="/packages/ui">
+    Explore the component library
+  </Card>
+</CardGroup>

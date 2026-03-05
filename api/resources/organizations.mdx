@@ -1,0 +1,639 @@
+---
+title: 'Organizations'
+description: 'Manage organizations and team collaboration'
+icon: 'users'
+---
+
+## Overview
+
+Organizations enable team collaboration in Budget Bee. Users can create organizations, invite members, and manage shared financial data with role-based access control.
+
+### Base URL
+
+Organization endpoints are managed through the Better Auth system:
+
+```
+{NEXT_PUBLIC_APP_URL}/api/auth
+```
+
+### Requirements
+
+<Warning>
+  Creating organizations requires:
+  - Email verified account
+  - Active Teams subscription or higher
+</Warning>
+
+---
+
+## Organization Schema
+
+<ResponseField name="id" type="string">
+  Unique organization identifier
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Organization name
+</ResponseField>
+
+<ResponseField name="slug" type="string">
+  URL-friendly organization identifier
+</ResponseField>
+
+<ResponseField name="logo" type="string">
+  URL to organization logo
+</ResponseField>
+
+<ResponseField name="metadata" type="object">
+  Additional organization metadata
+</ResponseField>
+
+<ResponseField name="created_at" type="timestamp">
+  Organization creation timestamp
+</ResponseField>
+
+---
+
+## Create Organization
+
+Create a new organization.
+
+```bash
+POST /api/auth/organization/create
+```
+
+### Request Body
+
+<ParamField body="name" type="string" required>
+  Organization name
+</ParamField>
+
+<ParamField body="slug" type="string">
+  URL-friendly identifier (auto-generated if not provided)
+</ParamField>
+
+<ParamField body="logo" type="string">
+  URL to organization logo
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Additional metadata
+</ParamField>
+
+### Request Example
+
+```bash
+curl -X POST "{NEXT_PUBLIC_APP_URL}/api/auth/organization/create" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=session_token_here" \
+  -d '{
+    "name": "Acme Corporation",
+    "slug": "acme-corp",
+    "logo": "https://example.com/logos/acme.png",
+    "metadata": {
+      "industry": "Technology",
+      "size": "50-200"
+    }
+  }'
+```
+
+### Response Example
+
+```json
+{
+  "id": "org_abc123",
+  "name": "Acme Corporation",
+  "slug": "acme-corp",
+  "logo": "https://example.com/logos/acme.png",
+  "metadata": {
+    "industry": "Technology",
+    "size": "50-200"
+  },
+  "created_at": "2024-01-15T10:30:00Z"
+}
+```
+
+### Limits
+
+<ParamField path="organizationLimit" type="number" default={5}>
+  Maximum 5 organizations per user
+</ParamField>
+
+<ParamField path="membershipLimit" type="number" default={50}>
+  Maximum 50 members per organization
+</ParamField>
+
+---
+
+## List Organizations
+
+Get all organizations the current user is a member of.
+
+```bash
+GET /api/auth/organization/list
+```
+
+### Request Example
+
+```bash
+curl -X GET "{NEXT_PUBLIC_APP_URL}/api/auth/organization/list" \
+  -H "Cookie: session=session_token_here"
+```
+
+### Response Example
+
+```json
+[
+  {
+    "id": "org_abc123",
+    "name": "Acme Corporation",
+    "slug": "acme-corp",
+    "logo": "https://example.com/logos/acme.png",
+    "role": "owner",
+    "created_at": "2024-01-15T10:30:00Z"
+  },
+  {
+    "id": "org_def456",
+    "name": "Tech Startup Inc",
+    "slug": "tech-startup",
+    "logo": null,
+    "role": "admin",
+    "created_at": "2024-02-01T14:20:00Z"
+  }
+]
+```
+
+---
+
+## Get Organization
+
+Retrieve details of a specific organization.
+
+```bash
+GET /api/auth/organization/get
+```
+
+### Query Parameters
+
+<ParamField query="organizationId" type="string" required>
+  Organization ID to retrieve
+</ParamField>
+
+### Request Example
+
+```bash
+curl -X GET "{NEXT_PUBLIC_APP_URL}/api/auth/organization/get?organizationId=org_abc123" \
+  -H "Cookie: session=session_token_here"
+```
+
+### Response Example
+
+```json
+{
+  "id": "org_abc123",
+  "name": "Acme Corporation",
+  "slug": "acme-corp",
+  "logo": "https://example.com/logos/acme.png",
+  "metadata": {
+    "industry": "Technology"
+  },
+  "members_count": 12,
+  "created_at": "2024-01-15T10:30:00Z"
+}
+```
+
+---
+
+## Update Organization
+
+Update organization details.
+
+```bash
+PATCH /api/auth/organization/update
+```
+
+### Request Body
+
+<ParamField body="organizationId" type="string" required>
+  Organization ID to update
+</ParamField>
+
+<ParamField body="name" type="string">
+  New organization name
+</ParamField>
+
+<ParamField body="slug" type="string">
+  New slug
+</ParamField>
+
+<ParamField body="logo" type="string">
+  New logo URL
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Updated metadata
+</ParamField>
+
+### Request Example
+
+```bash
+curl -X PATCH "{NEXT_PUBLIC_APP_URL}/api/auth/organization/update" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=session_token_here" \
+  -d '{
+    "organizationId": "org_abc123",
+    "name": "Acme Corp",
+    "logo": "https://example.com/logos/acme-new.png"
+  }'
+```
+
+### Response Example
+
+```json
+{
+  "id": "org_abc123",
+  "name": "Acme Corp",
+  "slug": "acme-corp",
+  "logo": "https://example.com/logos/acme-new.png",
+  "updated_at": "2024-01-20T16:45:00Z"
+}
+```
+
+---
+
+## Delete Organization
+
+Permanently delete an organization.
+
+```bash
+DELETE /api/auth/organization/delete
+```
+
+### Request Body
+
+<ParamField body="organizationId" type="string" required>
+  Organization ID to delete
+</ParamField>
+
+### Request Example
+
+```bash
+curl -X DELETE "{NEXT_PUBLIC_APP_URL}/api/auth/organization/delete" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=session_token_here" \
+  -d '{
+    "organizationId": "org_abc123"
+  }'
+```
+
+<Warning>
+  Deleting an organization will cascade delete all associated data including transactions, subscriptions, and categories.
+</Warning>
+
+---
+
+## Set Active Organization
+
+Switch the active organization for the current session.
+
+```bash
+POST /api/auth/organization/set-active
+```
+
+### Request Body
+
+<ParamField body="organizationId" type="string" required>
+  Organization ID to activate (or null for personal context)
+</ParamField>
+
+### Request Example
+
+```bash
+curl -X POST "{NEXT_PUBLIC_APP_URL}/api/auth/organization/set-active" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=session_token_here" \
+  -d '{
+    "organizationId": "org_abc123"
+  }'
+```
+
+### Response Example
+
+```json
+{
+  "session": {
+    "id": "ses_xyz789",
+    "active_organization_id": "org_abc123"
+  }
+}
+```
+
+---
+
+## Organization Members
+
+### List Members
+
+Get all members of an organization.
+
+```bash
+GET /api/auth/organization/list-members
+```
+
+#### Query Parameters
+
+<ParamField query="organizationId" type="string" required>
+  Organization ID
+</ParamField>
+
+#### Request Example
+
+```bash
+curl -X GET "{NEXT_PUBLIC_APP_URL}/api/auth/organization/list-members?organizationId=org_abc123" \
+  -H "Cookie: session=session_token_here"
+```
+
+#### Response Example
+
+```json
+[
+  {
+    "id": "mem_123",
+    "user_id": "usr_abc123",
+    "organization_id": "org_abc123",
+    "role": "owner",
+    "user": {
+      "id": "usr_abc123",
+      "name": "John Doe",
+      "email": "john@example.com",
+      "image": "https://example.com/avatars/john.jpg"
+    },
+    "created_at": "2024-01-15T10:30:00Z"
+  },
+  {
+    "id": "mem_456",
+    "user_id": "usr_def456",
+    "organization_id": "org_abc123",
+    "role": "editor",
+    "user": {
+      "id": "usr_def456",
+      "name": "Jane Smith",
+      "email": "jane@example.com",
+      "image": null
+    },
+    "created_at": "2024-01-16T11:20:00Z"
+  }
+]
+```
+
+### Invite Member
+
+Invite a user to join the organization.
+
+```bash
+POST /api/auth/organization/invite-member
+```
+
+#### Request Body
+
+<ParamField body="organizationId" type="string" required>
+  Organization ID
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Email address of user to invite
+</ParamField>
+
+<ParamField body="role" type="string" required>
+  Member role: `admin`, `editor`, or `viewer`
+</ParamField>
+
+#### Request Example
+
+```bash
+curl -X POST "{NEXT_PUBLIC_APP_URL}/api/auth/organization/invite-member" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=session_token_here" \
+  -d '{
+    "organizationId": "org_abc123",
+    "email": "newmember@example.com",
+    "role": "editor"
+  }'
+```
+
+#### Response Example
+
+```json
+{
+  "id": "inv_xyz789",
+  "organization_id": "org_abc123",
+  "email": "newmember@example.com",
+  "role": "editor",
+  "inviter_id": "usr_abc123",
+  "status": "pending",
+  "expires_at": "2024-01-22T10:30:00Z",
+  "created_at": "2024-01-15T10:30:00Z"
+}
+```
+
+<Note>
+  Invitation emails are automatically sent. Invitations expire after 7 days.
+</Note>
+
+### Update Member Role
+
+Change a member's role in the organization.
+
+```bash
+PATCH /api/auth/organization/update-member-role
+```
+
+#### Request Body
+
+<ParamField body="organizationId" type="string" required>
+  Organization ID
+</ParamField>
+
+<ParamField body="userId" type="string" required>
+  User ID of the member
+</ParamField>
+
+<ParamField body="role" type="string" required>
+  New role: `admin`, `editor`, or `viewer`
+</ParamField>
+
+#### Request Example
+
+```bash
+curl -X PATCH "{NEXT_PUBLIC_APP_URL}/api/auth/organization/update-member-role" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=session_token_here" \
+  -d '{
+    "organizationId": "org_abc123",
+    "userId": "usr_def456",
+    "role": "admin"
+  }'
+```
+
+### Remove Member
+
+Remove a member from the organization.
+
+```bash
+POST /api/auth/organization/remove-member
+```
+
+#### Request Body
+
+<ParamField body="organizationId" type="string" required>
+  Organization ID
+</ParamField>
+
+<ParamField body="userId" type="string" required>
+  User ID to remove
+</ParamField>
+
+#### Request Example
+
+```bash
+curl -X POST "{NEXT_PUBLIC_APP_URL}/api/auth/organization/remove-member" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=session_token_here" \
+  -d '{
+    "organizationId": "org_abc123",
+    "userId": "usr_def456"
+  }'
+```
+
+---
+
+## Organization Roles
+
+### Owner
+
+<Card icon="crown">
+  **Full Control**
+  
+  - All admin permissions
+  - Delete organization
+  - Transfer ownership
+  - Cannot be removed by other members
+</Card>
+
+**Permissions:**
+- Transactions: list, get, create, update, delete
+- Subscriptions: list, get, create, update, delete
+- Accounts: list, get, create, update, delete
+- Members: invite, update, remove
+- Organization: update, delete
+
+### Admin
+
+<Card icon="user-shield">
+  **Administrative Access**
+  
+  - Manage organization settings
+  - Manage members and invitations
+  - Full resource access
+</Card>
+
+**Permissions:**
+- Transactions: list, get, create, update, delete
+- Subscriptions: list, get, create, update, delete
+- Accounts: list, get, create, update, delete
+- Members: invite, update, remove
+- Organization: update
+
+### Editor
+
+<Card icon="pen">
+  **Read & Write Access**
+  
+  - Full CRUD on financial data
+  - Cannot manage members
+  - Cannot modify organization settings
+</Card>
+
+**Permissions:**
+- Transactions: list, get, create, update, delete
+- Subscriptions: list, get, create, update, delete
+- Accounts: list, get, create, update, delete
+- Members: list only
+
+### Viewer
+
+<Card icon="eye">
+  **Read-Only Access**
+  
+  - View all financial data
+  - Cannot create or modify data
+  - Cannot manage members
+</Card>
+
+**Permissions:**
+- Transactions: list, get
+- Subscriptions: list, get
+- Accounts: list, get
+- Members: list only
+
+---
+
+## Access Control
+
+Organization data access is enforced through PostgreSQL Row-Level Security (RLS):
+
+### Database Policies
+
+```sql
+-- Transactions policy example
+CREATE POLICY limit_transactions_select ON transactions 
+FOR SELECT TO authenticated 
+USING (
+  (
+    organization_id IS NULL 
+    AND user_id = uid()
+  )
+  OR (
+    organization_id = org_id()
+    AND check_ac_current('transaction', 'list')
+  )
+);
+```
+
+### JWT Claims
+
+When a user has an active organization, their JWT includes:
+
+```json
+{
+  "claims": {
+    "organization_id": "org_abc123",
+    "organization_role": "admin"
+  }
+}
+```
+
+---
+
+## Best Practices
+
+### Security
+
+1. **Verify email before creating organizations** - Email verification is required
+2. **Use least privilege** - Assign the minimum role needed
+3. **Regular audits** - Review member access periodically
+4. **Remove inactive members** - Clean up members who no longer need access
+
+### Organization Structure
+
+1. **Clear naming** - Use descriptive organization names
+2. **Consistent slugs** - Keep slugs URL-friendly and meaningful
+3. **Role assignment** - Only assign owner/admin to trusted users
+4. **Documentation** - Use metadata to store important org info
+
+### Collaboration
+
+1. **Onboarding** - Document processes for new members
+2. **Communication** - Establish channels for financial discussions
+3. **Data governance** - Set standards for categorization and tagging
+4. **Regular reviews** - Schedule periodic data quality checks

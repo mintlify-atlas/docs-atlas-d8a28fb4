@@ -1,0 +1,292 @@
+---
+title: Installation
+description: How to access and install Budget Bee
+---
+
+# Installation
+
+Budget Bee can be accessed as a hosted web application or self-hosted on your own infrastructure.
+
+## Accessing Budget Bee
+
+### Hosted Version
+
+The easiest way to use Budget Bee is through the hosted version:
+
+1. Visit the Budget Bee web application at the provided URL
+2. Create an account or sign in
+3. Start managing your finances immediately
+
+<Note>
+  The hosted version is maintained and updated automatically. No installation required.
+</Note>
+
+## System Requirements
+
+### Browser Compatibility
+
+Budget Bee works best on modern web browsers:
+
+<CardGroup cols={2}>
+  <Card title="Recommended Browsers" icon="check">
+    - Chrome 90+
+    - Firefox 88+
+    - Safari 14+
+    - Edge 90+
+  </Card>
+  
+  <Card title="Mobile Support" icon="mobile">
+    - iOS Safari 14+
+    - Chrome Mobile 90+
+    - Android Browser (latest)
+  </Card>
+</CardGroup>
+
+### Minimum Requirements
+
+- **JavaScript**: Must be enabled
+- **Cookies**: Must be enabled for authentication
+- **Screen Resolution**: 1024x768 or higher recommended
+- **Internet Connection**: Required for all features
+
+## Self-Hosting Budget Bee
+
+For organizations that want to host Budget Bee on their own infrastructure:
+
+### Prerequisites
+
+Before installing Budget Bee, ensure you have:
+
+<AccordionGroup>
+  <Accordion title="Node.js & pnpm">
+    - Node.js 22 or higher
+    - pnpm 10.25.0 or higher (specified in package.json)
+    
+    ```bash
+    node --version  # Should be v22.x.x or higher
+    pnpm --version  # Should be 10.25.0 or higher
+    ```
+  </Accordion>
+  
+  <Accordion title="PostgreSQL Database">
+    - PostgreSQL 14 or higher
+    - Ability to create databases and users
+    - At least 1GB of storage space
+    
+    See [Database Setup](/configuration/database-setup) for detailed instructions.
+  </Accordion>
+  
+  <Accordion title="Email Service">
+    - Resend API key (or another SMTP service)
+    - For sending verification emails and notifications
+    
+    Budget Bee uses Resend by default for transactional emails.
+  </Accordion>
+  
+  <Accordion title="Optional Services">
+    - Redis (for caching and session management)
+    - Cloudinary (for image uploads)
+    - Polar (for subscription billing)
+  </Accordion>
+</AccordionGroup>
+
+### Installation Steps
+
+<Steps>
+  <Step title="Clone the Repository">
+    ```bash
+    git clone https://github.com/yourusername/budgetbee.git
+    cd budgetbee
+    ```
+  </Step>
+  
+  <Step title="Install Dependencies">
+    ```bash
+    pnpm install
+    ```
+    
+    This will install all dependencies for the monorepo including:
+    - Web application (`apps/web`)
+    - Core packages (`packages/core`)
+    - UI components (`packages/ui`)
+  </Step>
+  
+  <Step title="Configure Environment Variables">
+    Copy the example environment file and configure it:
+    
+    ```bash
+    cp .env.example .env
+    ```
+    
+    Edit `.env` with your configuration. See [Environment Variables](/configuration/environment-variables) for details.
+    
+    <Warning>
+      Never commit your `.env` file to version control. It contains sensitive secrets.
+    </Warning>
+  </Step>
+  
+  <Step title="Set Up the Database">
+    Initialize the PostgreSQL database:
+    
+    ```bash
+    # Run the initialization script
+    pnpm --filter @budgetbee/core run initdb
+    ```
+    
+    This will:
+    - Create required database roles
+    - Run all migrations
+    - Set up row-level security policies
+    
+    See [Database Setup](/configuration/database-setup) for manual setup instructions.
+  </Step>
+  
+  <Step title="Start Development Server">
+    ```bash
+    pnpm --filter @budgetbee/web dev
+    ```
+    
+    The application will be available at `http://localhost:3000`
+  </Step>
+</Steps>
+
+### Building for Production
+
+To build Budget Bee for production deployment:
+
+```bash
+# Build the web application
+pnpm --filter @budgetbee/web build
+
+# Start the production server
+pnpm --filter @budgetbee/web start
+```
+
+<Tip>
+  Use a process manager like PM2 or systemd to keep the application running in production.
+</Tip>
+
+## Docker Deployment
+
+Budget Bee includes Docker configuration in the `infra/` directory:
+
+```bash
+# Build and start all services
+docker-compose up -d
+```
+
+This will start:
+- Web application
+- PostgreSQL database
+- Redis (if configured)
+
+## Verifying Installation
+
+After installation, verify everything is working:
+
+<Steps>
+  <Step title="Check Application Health">
+    Visit `http://localhost:3000` (or your configured URL)
+    
+    You should see the Budget Bee login page.
+  </Step>
+  
+  <Step title="Test Authentication">
+    Try creating a new account:
+    - Sign up with email and password
+    - Verify you receive the verification email
+    - Complete email verification
+  </Step>
+  
+  <Step title="Test Database Connection">
+    After logging in, try creating a transaction.
+    
+    If successful, your database connection is working correctly.
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Cannot connect to database">
+    Check your database configuration in `.env`:
+    - Verify `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DATABASE`
+    - Ensure PostgreSQL is running
+    - Check database user permissions
+    
+    ```bash
+    # Test PostgreSQL connection
+    psql -h localhost -U root -d budgetbee
+    ```
+  </Accordion>
+  
+  <Accordion title="Email verification not working">
+    Check your Resend configuration:
+    - Verify `RESEND_API_KEY` is set
+    - Ensure `SMTP_SENDER_NAME` and `SMTP_MAIL` are configured
+    - Check Resend dashboard for delivery status
+  </Accordion>
+  
+  <Accordion title="Port already in use">
+    If port 3000 is in use, specify a different port:
+    
+    ```bash
+    pnpm --filter @budgetbee/web dev -- -p 3001
+    ```
+  </Accordion>
+  
+  <Accordion title="Build errors">
+    Clear the build cache and reinstall:
+    
+    ```bash
+    pnpm clean
+    rm -rf node_modules
+    pnpm install
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Updating Budget Bee
+
+To update your self-hosted installation:
+
+```bash
+# Pull latest changes
+git pull origin main
+
+# Install new dependencies
+pnpm install
+
+# Run new migrations
+pnpm --filter @budgetbee/core run migrate
+
+# Rebuild the application
+pnpm --filter @budgetbee/web build
+
+# Restart the server
+pnpm --filter @budgetbee/web start
+```
+
+<Warning>
+  Always backup your database before updating to a new version.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configure Database" icon="database" href="/configuration/database-setup">
+    Set up PostgreSQL with proper roles and permissions.
+  </Card>
+  
+  <Card title="Set Up Authentication" icon="key" href="/configuration/authentication">
+    Configure Better Auth with OAuth providers.
+  </Card>
+  
+  <Card title="Environment Variables" icon="gear" href="/configuration/environment-variables">
+    Complete reference for all configuration options.
+  </Card>
+  
+  <Card title="Start Using Budget Bee" icon="rocket" href="/quickstart">
+    Create your first account and add transactions.
+  </Card>
+</CardGroup>

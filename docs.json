@@ -1,122 +1,135 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Budget Bee",
+  "theme": "almond",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#04fb9b",
+    "light": "#047c4c",
+    "dark": "#040806"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "https://media.brand.dev/1c123618-b553-4b4d-a60e-2ad4c811ee69.png",
+  "logo": {
+    "light": "https://media.brand.dev/1c123618-b553-4b4d-a60e-2ad4c811ee69.png",
+    "dark": "https://media.brand.dev/ec83629b-64cf-4f55-97d7-2b5acd06119f.png"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/sammaji/budgetbee"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/sammaji/budgetbee"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
+              "introduction",
               "quickstart",
-              "development"
+              "installation"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Features",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "features/transactions",
+              "features/accounts",
+              "features/subscriptions",
+              "features/dashboards",
+              "features/budgets",
+              "features/categories"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Organizations",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "organizations/overview",
+              "organizations/roles-permissions",
+              "organizations/invitations"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Configuration",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "configuration/environment-variables",
+              "configuration/database-setup",
+              "configuration/authentication"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "Self-Hosting",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Deployment",
             "pages": [
-              "api-reference/introduction"
+              "deployment/overview",
+              "deployment/docker",
+              "deployment/database-migrations"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Infrastructure",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "infrastructure/postgresql",
+              "infrastructure/postgrest",
+              "infrastructure/redis"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Development",
+        "groups": [
+          {
+            "group": "Contributing",
+            "pages": [
+              "development/getting-started",
+              "development/project-structure",
+              "development/code-guidelines"
+            ]
+          },
+          {
+            "group": "Packages",
+            "pages": [
+              "packages/core",
+              "packages/ui",
+              "packages/billing"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Authentication",
+            "pages": [
+              "api/authentication/overview",
+              "api/authentication/email-password",
+              "api/authentication/oauth"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "api/resources/transactions",
+              "api/resources/accounts",
+              "api/resources/subscriptions",
+              "api/resources/organizations",
+              "api/resources/dashboards"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }
