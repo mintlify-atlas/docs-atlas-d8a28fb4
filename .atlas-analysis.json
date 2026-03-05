@@ -1,0 +1,148 @@
+{
+  "projectType": "saas",
+  "projectName": "Budget Bee",
+  "projectDescription": "A simple accounting tool to help you manage your income, expenses, subscriptions, budgets and more.",
+  "theme": "almond",
+  "primaryColor": "#04fb9b",
+  "lightColor": "#047c4c",
+  "darkColor": "#040806",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/transactions",
+              "features/accounts",
+              "features/subscriptions",
+              "features/dashboards",
+              "features/budgets",
+              "features/categories"
+            ]
+          },
+          {
+            "group": "Organizations",
+            "pages": [
+              "organizations/overview",
+              "organizations/roles-permissions",
+              "organizations/invitations"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/environment-variables",
+              "configuration/database-setup",
+              "configuration/authentication"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Self-Hosting",
+        "groups": [
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/overview",
+              "deployment/docker",
+              "deployment/database-migrations"
+            ]
+          },
+          {
+            "group": "Infrastructure",
+            "pages": [
+              "infrastructure/postgresql",
+              "infrastructure/postgrest",
+              "infrastructure/redis"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Development",
+        "groups": [
+          {
+            "group": "Contributing",
+            "pages": [
+              "development/getting-started",
+              "development/project-structure",
+              "development/code-guidelines"
+            ]
+          },
+          {
+            "group": "Packages",
+            "pages": [
+              "packages/core",
+              "packages/ui",
+              "packages/billing"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Authentication",
+            "pages": [
+              "api/authentication/overview",
+              "api/authentication/email-password",
+              "api/authentication/oauth"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "api/resources/transactions",
+              "api/resources/accounts",
+              "api/resources/subscriptions",
+              "api/resources/organizations",
+              "api/resources/dashboards"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Transaction tracking and management with filtering and bulk editing",
+    "Multi-account support for tracking different bank accounts and wallets",
+    "Subscription tracking for recurring payments",
+    "Custom dashboards with drag-and-drop widgets and data visualizations",
+    "Budget management and expense categorization",
+    "Organization/team support with role-based access control",
+    "Authentication via email/password and Google OAuth",
+    "Billing integration with Polar for Pro and Teams subscription plans",
+    "PostgREST-based REST API with JWT authentication",
+    "PostgreSQL database with comprehensive access control"
+  ],
+  "publicApiSurface": [
+    "POST /api/auth/sign-up - Create new user account",
+    "POST /api/auth/sign-in - Authenticate user",
+    "GET /api/auth/session - Get current session",
+    "POST /api/auth/sign-out - End user session",
+    "GET /transactions - List transactions with filtering",
+    "POST /transactions - Create new transaction",
+    "PATCH /transactions - Update transaction",
+    "DELETE /transactions - Delete transaction",
+    "GET /accounts - List accounts",
+    "POST /accounts - Create new account",
+    "GET /subscriptions - List subscriptions",
+    "POST /subscriptions - Create subscription",
+    "GET /organizations - List organizations",
+    "POST /organizations - Create organization",
+    "GET /dashboards - List dashboard views",
+    "POST /dashboards - Create custom dashboard"
+  ]
+}
